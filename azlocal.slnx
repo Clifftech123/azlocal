@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AzLocal.Cli/AzLocal.Cli.csproj" />
+    <Project Path="src/AzLocal.Client/AzLocal.Client.csproj" />
+    <Project Path="src/AzLocal.Core/AzLocal.Core.csproj" />
+    <Project Path="src/AzLocal.Host/AzLocal.Host.csproj" />
+    <Project Path="src/AzLocal.Middleware/AzLocal.Middleware.csproj" />
+    <Project Path="src/AzLocal.Services/AzLocal.Services.csproj" />
+    <Project Path="src/AzLocal.State/AzLocal.State.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AzLocal.CompatTests/AzLocal.CompatTests.csproj" />
+    <Project Path="tests/AzLocal.IntegrationTests/AzLocal.IntegrationTests.csproj" />
+    <Project Path="tests/AzLocal.UnitTests/AzLocal.UnitTests.csproj" />
+  </Folder>
+</Solution>

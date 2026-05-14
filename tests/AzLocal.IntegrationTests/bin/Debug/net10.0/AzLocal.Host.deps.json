@@ -1,0 +1,90 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "AzLocal.Host/1.0.0": {
+        "dependencies": {
+          "AzLocal.Core": "1.0.0",
+          "AzLocal.Middleware": "1.0.0",
+          "AzLocal.Services": "1.0.0",
+          "AzLocal.State": "1.0.0"
+        },
+        "runtime": {
+          "AzLocal.Host.dll": {}
+        }
+      },
+      "AzLocal.Core/1.0.0": {
+        "runtime": {
+          "AzLocal.Core.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "AzLocal.Middleware/1.0.0": {
+        "dependencies": {
+          "AzLocal.Core": "1.0.0"
+        },
+        "runtime": {
+          "AzLocal.Middleware.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "AzLocal.Services/1.0.0": {
+        "dependencies": {
+          "AzLocal.Core": "1.0.0"
+        },
+        "runtime": {
+          "AzLocal.Services.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "AzLocal.State/1.0.0": {
+        "dependencies": {
+          "AzLocal.Core": "1.0.0"
+        },
+        "runtime": {
+          "AzLocal.State.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "AzLocal.Host/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AzLocal.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AzLocal.Middleware/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AzLocal.Services/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "AzLocal.State/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}
