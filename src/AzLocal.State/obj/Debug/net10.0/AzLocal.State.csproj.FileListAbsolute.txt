@@ -13,3 +13,4 @@ F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.State\obj\Debug\net10.0\AzLoc
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.State\obj\Debug\net10.0\refint\AzLocal.State.dll
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.State\obj\Debug\net10.0\AzLocal.State.pdb
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.State\obj\Debug\net10.0\ref\AzLocal.State.dll
+F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.State\obj\Debug\net10.0\AzLocal.State.sourcelink.json

@@ -13,3 +13,4 @@ F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Services\obj\Debug\net10.0\Az
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Services\obj\Debug\net10.0\refint\AzLocal.Services.dll
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Services\obj\Debug\net10.0\AzLocal.Services.pdb
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Services\obj\Debug\net10.0\ref\AzLocal.Services.dll
+F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Services\obj\Debug\net10.0\AzLocal.Services.sourcelink.json

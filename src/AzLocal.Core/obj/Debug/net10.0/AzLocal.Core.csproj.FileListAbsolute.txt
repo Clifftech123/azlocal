@@ -9,3 +9,4 @@ F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Core\obj\Debug\net10.0\AzLoca
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Core\obj\Debug\net10.0\refint\AzLocal.Core.dll
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Core\obj\Debug\net10.0\AzLocal.Core.pdb
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Core\obj\Debug\net10.0\ref\AzLocal.Core.dll
+F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Core\obj\Debug\net10.0\AzLocal.Core.sourcelink.json

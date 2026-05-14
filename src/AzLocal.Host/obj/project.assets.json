@@ -10,7 +10,10 @@
         },
         "runtime": {
           "bin/placeholder/AzLocal.Core.dll": {}
-        }
+        },
+        "frameworkReferences": [
+          "Microsoft.AspNetCore.App"
+        ]
       },
       "AzLocal.Middleware/1.0.0": {
         "type": "project",
@@ -23,7 +26,10 @@
         },
         "runtime": {
           "bin/placeholder/AzLocal.Middleware.dll": {}
-        }
+        },
+        "frameworkReferences": [
+          "Microsoft.AspNetCore.App"
+        ]
       },
       "AzLocal.Services/1.0.0": {
         "type": "project",
@@ -36,7 +42,10 @@
         },
         "runtime": {
           "bin/placeholder/AzLocal.Services.dll": {}
-        }
+        },
+        "frameworkReferences": [
+          "Microsoft.AspNetCore.App"
+        ]
       },
       "AzLocal.State/1.0.0": {
         "type": "project",
@@ -49,7 +58,10 @@
         },
         "runtime": {
           "bin/placeholder/AzLocal.State.dll": {}
-        }
+        },
+        "frameworkReferences": [
+          "Microsoft.AspNetCore.App"
+        ]
       }
     }
   },

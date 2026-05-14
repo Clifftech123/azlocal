@@ -13,3 +13,4 @@ F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Middleware\obj\Debug\net10.0\
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Middleware\obj\Debug\net10.0\refint\AzLocal.Middleware.dll
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Middleware\obj\Debug\net10.0\AzLocal.Middleware.pdb
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Middleware\obj\Debug\net10.0\ref\AzLocal.Middleware.dll
+F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Middleware\obj\Debug\net10.0\AzLocal.Middleware.sourcelink.json

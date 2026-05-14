@@ -16,3 +16,4 @@ F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Cli\obj\Debug\net10.0\refint\
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Cli\obj\Debug\net10.0\AzLocal.Cli.pdb
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Cli\obj\Debug\net10.0\AzLocal.Cli.genruntimeconfig.cache
 F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Cli\obj\Debug\net10.0\ref\AzLocal.Cli.dll
+F:\Devolopemnt\Package\azlocal\azlocal\src\AzLocal.Cli\obj\Debug\net10.0\AzLocal.Cli.sourcelink.json
