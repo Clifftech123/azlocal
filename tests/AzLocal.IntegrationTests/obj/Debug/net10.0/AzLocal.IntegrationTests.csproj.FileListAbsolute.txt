@@ -114,3 +114,4 @@ F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.IntegrationTests\obj\Debug\
 F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.IntegrationTests\obj\Debug\net10.0\AzLocal.IntegrationTests.pdb
 F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.IntegrationTests\obj\Debug\net10.0\AzLocal.IntegrationTests.genruntimeconfig.cache
 F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.IntegrationTests\obj\Debug\net10.0\ref\AzLocal.IntegrationTests.dll
+F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.IntegrationTests\obj\Debug\net10.0\AzLocal.IntegrationTests.sourcelink.json

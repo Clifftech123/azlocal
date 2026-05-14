@@ -100,3 +100,4 @@ F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.CompatTests\obj\Debug\net10
 F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.CompatTests\obj\Debug\net10.0\AzLocal.CompatTests.pdb
 F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.CompatTests\obj\Debug\net10.0\AzLocal.CompatTests.genruntimeconfig.cache
 F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.CompatTests\obj\Debug\net10.0\ref\AzLocal.CompatTests.dll
+F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.CompatTests\obj\Debug\net10.0\AzLocal.CompatTests.sourcelink.json

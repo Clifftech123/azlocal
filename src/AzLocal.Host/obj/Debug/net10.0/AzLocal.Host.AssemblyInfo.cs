@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AzLocal.Host")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6a72cc2ad28ffd8f3e10787cedd29b1fed330c38")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+aa4a8c81965a9300e67e0a7bfd5791780f2f17e4")]
 [assembly: System.Reflection.AssemblyProductAttribute("AzLocal.Host")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AzLocal.Host")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

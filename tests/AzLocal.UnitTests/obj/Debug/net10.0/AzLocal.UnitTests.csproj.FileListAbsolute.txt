@@ -104,3 +104,4 @@ F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.UnitTests\obj\Debug\net10.0
 F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.UnitTests\obj\Debug\net10.0\AzLocal.UnitTests.pdb
 F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.UnitTests\obj\Debug\net10.0\AzLocal.UnitTests.genruntimeconfig.cache
 F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.UnitTests\obj\Debug\net10.0\ref\AzLocal.UnitTests.dll
+F:\Devolopemnt\Package\azlocal\azlocal\tests\AzLocal.UnitTests\obj\Debug\net10.0\AzLocal.UnitTests.sourcelink.json

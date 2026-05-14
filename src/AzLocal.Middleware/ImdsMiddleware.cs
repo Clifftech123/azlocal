@@ -1,4 +1,6 @@
-﻿namespace AzLocal.Middleware;
+﻿using Microsoft.AspNetCore.Http;
+
+namespace AzLocal.Middleware;
 
 public class ImdsMiddleware
 {
@@ -8,3 +10,4 @@ public class ImdsMiddleware
 
     public async Task InvokeAsync(HttpContext context) => await _next(context);
 }
+

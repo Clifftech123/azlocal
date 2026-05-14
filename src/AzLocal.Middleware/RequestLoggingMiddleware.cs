@@ -1,4 +1,6 @@
-﻿namespace AzLocal.Middleware;
+﻿using Microsoft.AspNetCore.Http;
+
+namespace AzLocal.Middleware;
 
 public class RequestLoggingMiddleware
 {
@@ -8,3 +10,4 @@ public class RequestLoggingMiddleware
 
     public async Task InvokeAsync(HttpContext context) => await _next(context);
 }
+
