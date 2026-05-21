@@ -1,13 +1,17 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using AzLocal.Core.Routing;
+using Microsoft.AspNetCore.Http;
 
 namespace AzLocal.Middleware;
 
 public class RequestContextMiddleware
 {
     private readonly RequestDelegate _next;
-
     public RequestContextMiddleware(RequestDelegate next) => _next = next;
 
-    public async Task InvokeAsync(HttpContext context) => await _next(context);
+    public async Task InvokeAsync(HttpContext context)
+    {
+        context.Items["RequestContext"] = ServiceRouter.BuildContext(context.Request);
+        await _next(context);
+    }
 }
 
