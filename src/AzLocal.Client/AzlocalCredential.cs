@@ -1,3 +1,4 @@
+using AzLocal.Core;
 using Azure.Core;
 
 namespace AzLocal.Client;
@@ -9,8 +10,10 @@ namespace AzLocal.Client;
 /// </summary>
 public sealed class AzlocalCredential : TokenCredential
 {
-    // Matches the token returned by ImdsMiddleware so the SDK sees a consistent value.
-    private static readonly AccessToken Token = new("fake-azlocal-token", DateTimeOffset.MaxValue);
+    // Token value is shared with ImdsMiddleware via EmulatorDefaults — they must always match.
+    public static readonly string TokenValue = EmulatorDefaults.FakeToken;
+
+    private static readonly AccessToken Token = new(TokenValue, DateTimeOffset.MaxValue);
 
     public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken)
         => Token;

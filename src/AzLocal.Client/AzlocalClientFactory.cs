@@ -1,3 +1,4 @@
+using AzLocal.Core;
 using Azure.Security.KeyVault.Secrets;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
@@ -12,7 +13,7 @@ namespace AzLocal.Client;
 public sealed class AzlocalClientFactory
 {
     private readonly string _baseUrl;
-    private const string DefaultBaseUrl = "http://localhost:4566";
+    private const string DefaultBaseUrl = EmulatorDefaults.BaseUrl;
 
     /// <summary>The credential that satisfies Azure SDK authentication against the local emulator.</summary>
     public AzlocalCredential Credential { get; } = new();
@@ -108,7 +109,7 @@ public sealed class AzlocalClientFactory
             BaseAddress = new Uri($"{_baseUrl}/sb/{@namespace}/")
         };
         client.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "fake-azlocal-token");
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AzlocalCredential.TokenValue);
         return client;
     }
 
@@ -124,7 +125,7 @@ public sealed class AzlocalClientFactory
     {
         var client = new HttpClient { BaseAddress = new Uri(_baseUrl) };
         client.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "fake-azlocal-token");
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AzlocalCredential.TokenValue);
         return client;
     }
 
