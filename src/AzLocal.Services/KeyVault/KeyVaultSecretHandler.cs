@@ -143,7 +143,7 @@ public class KeyVaultSecretHandler : IServiceHandler
         expires = s.ExpiresOn?.ToUnixTimeSeconds()
     };
 
-    private static object SecretResponse(string vault, KeyVaultSecret secret) => new
+    private object SecretResponse(string vault, KeyVaultSecret secret) => new
     {
         value      = secret.Value,
         id         = SecretUrl(vault, secret.Name, secret.Version),
