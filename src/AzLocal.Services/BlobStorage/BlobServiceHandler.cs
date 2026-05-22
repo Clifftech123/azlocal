@@ -2,6 +2,7 @@ using AzLocal.Core.Interfaces;
 using AzLocal.Core.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Xml;
@@ -13,14 +14,16 @@ public class BlobServiceHandler : IServiceHandler
     private readonly IStateStore _state;
     private readonly IBlobFileStore _blobs;
     private readonly ILogger<BlobServiceHandler> _logger;
+    private readonly string _baseUrl;
 
     public string ServiceName => "BlobStorage";
 
-    public BlobServiceHandler(IStateStore state, IBlobFileStore blobs, ILogger<BlobServiceHandler> logger)
+    public BlobServiceHandler(IStateStore state, IBlobFileStore blobs, ILogger<BlobServiceHandler> logger, IConfiguration config)
     {
         _state = state;
         _blobs = blobs;
         _logger = logger;
+        _baseUrl = (config["AzLocal:BaseUrl"] ?? "http://localhost").TrimEnd('/');
     }
 
     public void MapRoutes(WebApplication app)
@@ -45,7 +48,7 @@ public class BlobServiceHandler : IServiceHandler
         var xml = BuildXml(writer =>
         {
             writer.WriteStartElement("EnumerationResults");
-            writer.WriteAttributeString("ServiceEndpoint", $"http://localhost/azu/{account}");
+            writer.WriteAttributeString("ServiceEndpoint", $"{_baseUrl}/azu/{account}");
             writer.WriteStartElement("Containers");
             foreach (var c in containers)
             {
@@ -73,7 +76,7 @@ public class BlobServiceHandler : IServiceHandler
         var xml = BuildXml(writer =>
         {
             writer.WriteStartElement("EnumerationResults");
-            writer.WriteAttributeString("ServiceEndpoint", $"http://localhost/azu/{account}");
+            writer.WriteAttributeString("ServiceEndpoint", $"{_baseUrl}/azu/{account}");
             writer.WriteAttributeString("ContainerName", container);
             writer.WriteStartElement("Blobs");
             foreach (var b in blobs)
