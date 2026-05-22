@@ -29,6 +29,9 @@ x86/
 [Ww][Ii][Nn]32/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/
+# Restore source files in project folders named Arm — the rules above target build output only
+!src/**/[Aa][Rr][Mm]/
+!src/**/[Aa][Rr][Mm]/**
 bld/
 [Bb]in/
 [Oo]bj/
