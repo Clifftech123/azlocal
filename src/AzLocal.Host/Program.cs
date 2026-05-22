@@ -22,11 +22,12 @@ foreach (var handler in app.Services.GetServices<IServiceHandler>())
     app.Logger.LogInformation("Registered service: {ServiceName}", handler.ServiceName);
 }
 
+var baseUrl = app.Configuration["AzLocal:BaseUrl"] ?? "http://localhost:4566";
 app.MapGet("/", () => new
 {
     status  = "AzLocal emulator running",
     version = "1.0",
-    docs    = "http://localhost:4566/"
+    docs    = $"{baseUrl}/"
 });
 
 app.Run();

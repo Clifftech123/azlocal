@@ -1,4 +1,6 @@
+using AzLocal.Core;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using System.Security.Claims;
 
 namespace AzLocal.Middleware;
@@ -7,26 +9,32 @@ namespace AzLocal.Middleware;
 /// Bypasses Azure AD authentication for local development.
 /// Injects a fake authenticated identity on every request so [Authorize] checks pass
 /// without needing a real Azure AD token or tenant.
+/// Identity values are read from <c>AzLocal:ObjectId</c> and <c>AzLocal:TenantId</c> in configuration.
 /// </summary>
 public class AuthStubMiddleware
 {
     private readonly RequestDelegate _next;
+    private readonly ClaimsPrincipal _fakeUser;
 
-    // Static so the same fake identity is reused on every request — no per-request allocation.
-    // authenticationType must be non-null/non-empty for IsAuthenticated to return true.
-    private static readonly ClaimsPrincipal FakeUser = new(new ClaimsIdentity(
-    [
-        new Claim("oid", "00000000-0000-0000-0000-000000000001"),  // fake Azure object ID
-        new Claim("tid", "00000000-0000-0000-0000-000000000002"),  // fake tenant ID
-        new Claim(ClaimTypes.Name, "azlocal-dev"),
-    ], authenticationType: "AzLocalStub"));
+    public AuthStubMiddleware(RequestDelegate next, IConfiguration config)
+    {
+        _next = next;
+        var objectId = config["AzLocal:ObjectId"] ?? EmulatorDefaults.ObjectId;
+        var tenantId = config["AzLocal:TenantId"] ?? EmulatorDefaults.TenantId;
 
-    public AuthStubMiddleware(RequestDelegate next) => _next = next;
+        // authenticationType must be non-null/non-empty for IsAuthenticated to return true.
+        _fakeUser = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim("oid", objectId),
+            new Claim("tid", tenantId),
+            new Claim(ClaimTypes.Name, "azlocal-dev"),
+        ], authenticationType: "AzLocalStub"));
+    }
 
     public async Task InvokeAsync(HttpContext context)
     {
         // Skip real token validation — stamp every request as authenticated locally.
-        context.User = FakeUser;
+        context.User = _fakeUser;
         await _next(context);
     }
 }

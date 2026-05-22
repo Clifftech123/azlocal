@@ -28,7 +28,7 @@ public class SubscriptionHandler : IServiceHandler
         _fakeSubscription = new
         {
             subscriptionId = _subscriptionId,
-            displayName    = "AzLocal Dev Subscription",
+            displayName    = config["AzLocal:SubscriptionDisplayName"] ?? "AzLocal Dev Subscription",
             state          = "Enabled",
             tenantId
         };
