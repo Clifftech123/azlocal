@@ -232,7 +232,12 @@ git clone <repo-url>
 cd azlocal
 dotnet build
 dotnet test
-``
+```
+
+See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for the project layout and more detail.
+
+---
+
 ## License
 
-MIT
+[MIT](LICENSE)
