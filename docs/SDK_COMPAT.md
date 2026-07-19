@@ -4,7 +4,7 @@ azlocal's goal is that real Azure SDK code works against it unchanged. That's tr
 Blob Storage and Key Vault Secrets. It is **not** true for Service Bus or ARM — this page
 explains why, and what actually works instead.
 
-## ✅ Blob Storage — `Azure.Storage.Blobs`
+## Blob Storage — `Azure.Storage.Blobs` (compatible)
 
 Fully compatible. `AzlocalClientFactory.CreateBlobServiceClient`/`CreateBlobContainerClient`/
 `CreateBlobClient` return real `Azure.Storage.Blobs` SDK clients, and every method that
@@ -26,7 +26,7 @@ explain constraints you'll hit if you construct clients yourself instead of usin
   `containerClient.GetBlobClient(name)`), even though a hand-rolled HTTP request to the same
   URL works fine. That's why `EmulatorDefaults.BaseUrl` is `https://127.0.0.1:4566`.
 
-## ✅ Key Vault Secrets — `Azure.Security.KeyVault.Secrets`
+## Key Vault Secrets — `Azure.Security.KeyVault.Secrets` (compatible)
 
 Fully compatible. `AzlocalClientFactory.CreateSecretClient` returns a real `SecretClient`.
 Set/get/delete/list secrets and version history all work.
@@ -50,7 +50,7 @@ stricter:
   Blob, Service Bus, and ARM can share one port), but the `id` returned in JSON responses omits
   the `/kv/{vault}` prefix so the SDK can parse it.
 
-## ⚠️ Service Bus (Queues) — HTTP only, not `Azure.Messaging.ServiceBus`
+## Service Bus (Queues) — HTTP only, not `Azure.Messaging.ServiceBus`
 
 **Not compatible with the real SDK, and can't be** without a much larger investment: the real
 `Azure.Messaging.ServiceBus` SDK speaks **AMQP 1.0 over TCP**, not HTTP. azlocal's Service Bus
@@ -70,7 +70,7 @@ var received = await sb.PostAsync("myqueue/messages/head", content: null);      
 Making the real SDK work would mean implementing an AMQP 1.0 listener (links, sessions, flow
 control) — a substantially different undertaking from the REST work the rest of azlocal does.
 
-## ⚠️ ARM (Resource Groups & Subscriptions) — HTTP only, not `Azure.ResourceManager`
+## ARM (Resource Groups & Subscriptions) — HTTP only, not `Azure.ResourceManager`
 
 ARM's real REST API is plain HTTPS (unlike Service Bus), so `Azure.ResourceManager` could in
 principle work against a compatible emulator — but azlocal doesn't attempt that SDK's full
