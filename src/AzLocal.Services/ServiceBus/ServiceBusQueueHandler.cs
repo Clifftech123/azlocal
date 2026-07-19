@@ -75,8 +75,7 @@ public class ServiceBusQueueHandler : IServiceHandler
     /// </summary>
     private async Task<IResult> ReceiveMessageAsync(string @namespace, string queue, HttpContext ctx)
     {
-        var messages = await _state.ListAsync<ServiceBusMessage>(ActivePrefix(@namespace, queue));
-        var message = messages.OrderBy(m => m.EnqueuedAt).FirstOrDefault();
+        var message = await NextUnlockedMessageAsync(@namespace, queue);
         if (message is null)
         {
             _logger.LogDebug("ReceiveMessage ns={Namespace} queue={Queue} — queue empty", @namespace, queue);
@@ -100,7 +99,9 @@ public class ServiceBusQueueHandler : IServiceHandler
             DeliveryCount = message.DeliveryCount,
             EnqueuedTimeUtc = message.EnqueuedAt
         });
-        return Results.Ok(message.Body);
+        // The message body is the raw payload the caller sent — Results.Ok(string) would
+        // JSON-encode it (wrapping it in quotes), corrupting it for any consumer.
+        return Results.Text(message.Body);
     }
 
     /// <summary>
@@ -109,8 +110,7 @@ public class ServiceBusQueueHandler : IServiceHandler
     /// </summary>
     private async Task<IResult> ReceiveAndDeleteAsync(string @namespace, string queue, HttpContext ctx)
     {
-        var messages = await _state.ListAsync<ServiceBusMessage>(ActivePrefix(@namespace, queue));
-        var message = messages.OrderBy(m => m.EnqueuedAt).FirstOrDefault();
+        var message = await NextUnlockedMessageAsync(@namespace, queue);
         if (message is null) return Results.NoContent();
 
         await _state.DeleteAsync(ActiveKey(@namespace, queue, message.MessageId));
@@ -123,7 +123,9 @@ public class ServiceBusQueueHandler : IServiceHandler
             DeliveryCount = message.DeliveryCount + 1,
             EnqueuedTimeUtc = message.EnqueuedAt
         });
-        return Results.Ok(message.Body);
+        // The message body is the raw payload the caller sent — Results.Ok(string) would
+        // JSON-encode it (wrapping it in quotes), corrupting it for any consumer.
+        return Results.Text(message.Body);
     }
 
     /// <summary>Completes a previously peek-locked message, removing it from the queue.</summary>
@@ -185,11 +187,27 @@ public class ServiceBusQueueHandler : IServiceHandler
 
     #region Private helpers
 
+    // Shared by peek-lock and receive-and-delete: a message currently held under an active
+    // lock must stay invisible to other receivers until it's completed, dead-lettered, or the
+    // lock expires — otherwise two consumers could process the same message concurrently.
+    private async Task<ServiceBusMessage?> NextUnlockedMessageAsync(string ns, string queue)
+    {
+        var lockedMessageIds = (await _state.ListAsync<string>(LockPrefix(ns, queue))).ToHashSet();
+        var messages = await _state.ListAsync<ServiceBusMessage>(ActivePrefix(ns, queue));
+        return messages
+            .Where(m => !lockedMessageIds.Contains(m.MessageId))
+            .OrderBy(m => m.EnqueuedAt)
+            .FirstOrDefault();
+    }
+
     private static string ActivePrefix(string ns, string queue) =>
         $"servicebus/{ns}/{queue}/active/".ToLowerInvariant();
 
     private static string ActiveKey(string ns, string queue, string messageId) =>
         $"servicebus/{ns}/{queue}/active/{messageId}".ToLowerInvariant();
+
+    private static string LockPrefix(string ns, string queue) =>
+        $"servicebus/{ns}/{queue}/locks/".ToLowerInvariant();
 
     private static string LockKey(string ns, string queue, string lockToken) =>
         $"servicebus/{ns}/{queue}/locks/{lockToken}".ToLowerInvariant();

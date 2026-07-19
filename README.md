@@ -21,10 +21,13 @@ azlocal runs a local server on your machine that speaks the same HTTP API as Azu
 You start azlocal once, then your code and tests work as if Azure is there.
 
 ```bash
+# One-time: trust the local HTTPS dev certificate (Azure SDKs require HTTPS)
+azlocal trust-cert
+
 # Start the emulator
 azlocal start
 
-# Emulator is now running at http://localhost:4566
+# Emulator is now running at https://127.0.0.1:4566
 # All Azure services respond on that single port
 ```
 

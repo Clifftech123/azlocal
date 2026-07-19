@@ -35,7 +35,7 @@ public static class WaitCommand
             {
                 try
                 {
-                    var response = await http.GetAsync($"http://localhost:{port}/", ct);
+                    var response = await http.GetAsync($"https://127.0.0.1:{port}/", ct);
                     if (response.IsSuccessStatusCode)
                     {
                         Console.WriteLine(" ready.");

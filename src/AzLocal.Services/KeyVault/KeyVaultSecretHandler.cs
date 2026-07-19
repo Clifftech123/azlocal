@@ -20,14 +20,14 @@ public class KeyVaultSecretHandler : IServiceHandler
     {
         _state = state;
         _logger = logger;
-        _baseUrl = (config["AzLocal:BaseUrl"] ?? "http://localhost").TrimEnd('/');
+        _baseUrl = (config["AzLocal:BaseUrl"] ?? "https://127.0.0.1").TrimEnd('/');
     }
 
     public void MapRoutes(WebApplication app)
     {
-        app.MapGet(KeyVaultRoutes.Secrets,       ListSecretsAsync);
-        app.MapPut(KeyVaultRoutes.SecretByName,  SetSecretAsync);
-        app.MapGet(KeyVaultRoutes.SecretByName,  GetSecretAsync);
+        app.MapGet(KeyVaultRoutes.Secrets, ListSecretsAsync);
+        app.MapPut(KeyVaultRoutes.SecretByName, SetSecretAsync);
+        app.MapGet(KeyVaultRoutes.SecretByName, GetSecretAsync);
         app.MapGet(KeyVaultRoutes.SecretVersion, GetSecretVersionAsync);
         app.MapDelete(KeyVaultRoutes.SecretByName, DeleteSecretAsync);
     }
@@ -44,7 +44,7 @@ public class KeyVaultSecretHandler : IServiceHandler
             .Where(s => s.Enabled)
             .GroupBy(s => s.Name)
             .Select(g => g.OrderByDescending(s => s.UpdatedOn).First())
-            .Select(s => new { id = SecretUrl(vault, s.Name, s.Version), attributes = Attributes(s) });
+            .Select(s => new { id = SecretUrl(s.Name, s.Version), attributes = Attributes(s) });
 
         SetRequestId(ctx);
         return Results.Ok(new { value = latest });
@@ -72,13 +72,13 @@ public class KeyVaultSecretHandler : IServiceHandler
             CreatedOn = DateTimeOffset.UtcNow,
             UpdatedOn = DateTimeOffset.UtcNow
         };
-        secret.Id = SecretUrl(vault, secretName, secret.Version);
+        secret.Id = SecretUrl(secretName, secret.Version);
 
         await _state.SetAsync(SecretKey(vault, secretName, secret.Version), secret);
         _logger.LogInformation("Secret set vault={Vault} secret={Secret} version={Version}", vault, secretName, secret.Version);
 
         SetRequestId(ctx);
-        return Results.Ok(SecretResponse(vault, secret));
+        return Results.Ok(SecretResponse(secret));
     }
 
     private async Task<IResult> GetSecretAsync(string vault, string secretName, HttpContext ctx)
@@ -92,7 +92,7 @@ public class KeyVaultSecretHandler : IServiceHandler
         }
 
         SetRequestId(ctx);
-        return Results.Ok(SecretResponse(vault, secret));
+        return Results.Ok(SecretResponse(secret));
     }
 
     private async Task<IResult> GetSecretVersionAsync(string vault, string secretName, string version, HttpContext ctx)
@@ -105,7 +105,7 @@ public class KeyVaultSecretHandler : IServiceHandler
         }
 
         SetRequestId(ctx);
-        return Results.Ok(SecretResponse(vault, secret));
+        return Results.Ok(SecretResponse(secret));
     }
 
     private async Task<IResult> DeleteSecretAsync(string vault, string secretName, HttpContext ctx)
@@ -119,7 +119,21 @@ public class KeyVaultSecretHandler : IServiceHandler
 
         _logger.LogInformation("Secret deleted (soft) vault={Vault} secret={Secret} versions={Count}", vault, secretName, all.Count);
         SetRequestId(ctx);
-        return Results.Ok();
+
+        var latest = all.OrderByDescending(s => s.UpdatedOn).FirstOrDefault();
+        if (latest is null) return Results.NotFound();
+
+        // SecretClient.StartDeleteSecretAsync deserializes the response as a DeletedSecret —
+        // an empty body (or plain 200 with no content) fails client-side JSON parsing.
+        var now = DateTimeOffset.UtcNow;
+        return Results.Ok(new
+        {
+            id = SecretUrl(secretName, latest.Version),
+            attributes = Attributes(latest),
+            recoveryId = $"{_baseUrl}/deletedsecrets/{secretName}",
+            deletedDate = now.ToUnixTimeSeconds(),
+            scheduledPurgeDate = now.AddDays(90).ToUnixTimeSeconds()
+        });
     }
 
     #endregion
@@ -129,8 +143,12 @@ public class KeyVaultSecretHandler : IServiceHandler
     private static string SecretKey(string vault, string name, string version) =>
         $"keyvault/secrets/{vault}/{name}/{version}".ToLowerInvariant();
 
-    private string SecretUrl(string vault, string name, string version) =>
-        $"{_baseUrl}/kv/{vault}/secrets/{name}/{version}";
+    // Deliberately omits the "/kv/{vault}" prefix used for routing incoming requests: the Key
+    // Vault SDK's own KeyVaultIdentifier.Parse expects response "id" URLs shaped exactly
+    // "{host}/secrets/{name}/{version}" (real Azure identifies the vault via a subdomain, not
+    // a path segment) — an extra path segment here makes the SDK reject the response.
+    private string SecretUrl(string name, string version) =>
+        $"{_baseUrl}/secrets/{name}/{version}";
 
     private static void SetRequestId(HttpContext ctx) =>
         ctx.Response.Headers["x-ms-request-id"] = Guid.NewGuid().ToString();
@@ -143,10 +161,10 @@ public class KeyVaultSecretHandler : IServiceHandler
         expires = s.ExpiresOn?.ToUnixTimeSeconds()
     };
 
-    private object SecretResponse(string vault, KeyVaultSecret secret) => new
+    private object SecretResponse(KeyVaultSecret secret) => new
     {
-        value      = secret.Value,
-        id         = SecretUrl(vault, secret.Name, secret.Version),
+        value = secret.Value,
+        id = SecretUrl(secret.Name, secret.Version),
         attributes = Attributes(secret)
     };
 
