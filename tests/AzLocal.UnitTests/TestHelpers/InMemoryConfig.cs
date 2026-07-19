@@ -4,15 +4,19 @@ using Microsoft.Extensions.Primitives;
 namespace AzLocal.UnitTests.TestHelpers;
 
 /// <summary>
-/// Minimal <see cref="IConfiguration"/> stub for tests. The state store constructors
-/// only ever read a single key via the string indexer, so that's all this implements.
+/// Minimal <see cref="IConfiguration"/> stub for tests. Constructors under test only ever
+/// read config via the string indexer, so that's all this implements.
 /// </summary>
 internal sealed class InMemoryConfig : IConfiguration
 {
     private readonly Dictionary<string, string?> _values;
 
+    public InMemoryConfig() => _values = new Dictionary<string, string?>();
+
     public InMemoryConfig(string key, string? value) =>
         _values = new Dictionary<string, string?> { [key] = value };
+
+    public InMemoryConfig(Dictionary<string, string?> values) => _values = values;
 
     public string? this[string key]
     {
