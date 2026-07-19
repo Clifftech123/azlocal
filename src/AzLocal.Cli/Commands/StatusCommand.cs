@@ -22,7 +22,7 @@ public static class StatusCommand
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
             try
             {
-                var response = await http.GetAsync($"http://localhost:{port}/", ct);
+                var response = await http.GetAsync($"https://127.0.0.1:{port}/", ct);
                 Console.WriteLine($"RUNNING on port {port} (HTTP {(int)response.StatusCode})");
             }
             catch

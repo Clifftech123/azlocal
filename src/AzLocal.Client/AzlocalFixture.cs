@@ -14,7 +14,7 @@ public sealed class AzlocalFixture : IAsyncDisposable
 {
     public AzlocalClientFactory Clients { get; }
 
-    public AzlocalFixture(string baseUrl = "http://localhost:4566")
+    public AzlocalFixture(string baseUrl = "https://127.0.0.1:4566")
     {
         Clients = new AzlocalClientFactory(baseUrl);
     }

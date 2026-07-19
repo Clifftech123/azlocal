@@ -80,6 +80,7 @@ public class SqliteStateStore : IStateStore
         return results;
     }
 
+
     /// <summary>Returns true if an entry with the given key exists.</summary>
     public async Task<bool> ExistsAsync(string key)
     {

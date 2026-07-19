@@ -1,4 +1,5 @@
 using AzLocal.Core;
+using Azure.Core.Pipeline;
 using Azure.Security.KeyVault.Secrets;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
@@ -13,14 +14,22 @@ namespace AzLocal.Client;
 public sealed class AzlocalClientFactory
 {
     private readonly string _baseUrl;
+    private readonly HttpMessageHandler? _handler;
     private const string DefaultBaseUrl = EmulatorDefaults.BaseUrl;
 
     /// <summary>The credential that satisfies Azure SDK authentication against the local emulator.</summary>
     public AzlocalCredential Credential { get; } = new();
 
-    public AzlocalClientFactory(string baseUrl = DefaultBaseUrl)
+    /// <param name="baseUrl">The emulator's base address.</param>
+    /// <param name="handler">
+    /// Optional transport handler. Pass the handler from an in-process test host (e.g.
+    /// <c>WebApplicationFactory.Server.CreateHandler()</c>) to route every client created by
+    /// this factory through that host in-memory instead of over a real socket connection.
+    /// </param>
+    public AzlocalClientFactory(string baseUrl = DefaultBaseUrl, HttpMessageHandler? handler = null)
     {
         _baseUrl = baseUrl.TrimEnd('/');
+        _handler = handler;
     }
 
     // -------------------------------------------------------------------------
@@ -50,7 +59,7 @@ public sealed class AzlocalClientFactory
     /// </summary>
     public BlobContainerClient CreateBlobContainerClient(string account, string container)
     {
-        var uri = new Uri($"{_baseUrl}/azu/{account}/{container}");
+        var uri = new Uri($"{_baseUrl}/{account}/{container}");
         return new BlobContainerClient(uri, Credential, BuildBlobOptions());
     }
 
@@ -63,7 +72,7 @@ public sealed class AzlocalClientFactory
     /// </summary>
     public BlobClient CreateBlobClient(string account, string container, string blobName)
     {
-        var uri = new Uri($"{_baseUrl}/azu/{account}/{container}/{blobName}");
+        var uri = new Uri($"{_baseUrl}/{account}/{container}/{blobName}");
         return new BlobClient(uri, Credential, BuildBlobOptions());
     }
 
@@ -84,8 +93,14 @@ public sealed class AzlocalClientFactory
         var uri = new Uri($"{_baseUrl}/kv/{vault}");
         var options = new SecretClientOptions
         {
-            Retry = { MaxRetries = 0 }
+            Retry = { MaxRetries = 0 },
+            // The SDK's challenge-response auth refuses to send a token when the challenge's
+            // "resource" domain doesn't match the request host — which is always true for a
+            // local emulator, since it can never live at *.vault.azure.net.
+            DisableChallengeResourceVerification = true
         };
+        if (_handler is not null)
+            options.Transport = new HttpClientTransport(_handler);
         return new SecretClient(uri, Credential, options);
     }
 
@@ -104,12 +119,8 @@ public sealed class AzlocalClientFactory
     /// </summary>
     public HttpClient CreateServiceBusHttpClient(string @namespace)
     {
-        var client = new HttpClient
-        {
-            BaseAddress = new Uri($"{_baseUrl}/sb/{@namespace}/")
-        };
-        client.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AzlocalCredential.TokenValue);
+        var client = CreateRawHttpClient();
+        client.BaseAddress = new Uri($"{_baseUrl}/sb/{@namespace}/");
         return client;
     }
 
@@ -123,22 +134,39 @@ public sealed class AzlocalClientFactory
     /// </summary>
     public HttpClient CreateHttpClient()
     {
-        var client = new HttpClient { BaseAddress = new Uri(_baseUrl) };
-        client.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AzlocalCredential.TokenValue);
+        var client = CreateRawHttpClient();
+        client.BaseAddress = new Uri(_baseUrl);
         return client;
     }
 
     /// <summary>Returns the blob storage base URI for the given account.</summary>
-    public Uri GetBlobEndpoint(string account) => new($"{_baseUrl}/azu/{account}");
+    public Uri GetBlobEndpoint(string account) => new($"{_baseUrl}/{account}");
 
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
 
-    private static BlobClientOptions BuildBlobOptions() => new()
+    private BlobClientOptions BuildBlobOptions()
     {
-        // Disable retries so tests fail fast instead of hanging on connection errors.
-        Retry = { MaxRetries = 0 }
-    };
+        var options = new BlobClientOptions
+        {
+            // Disable retries so tests fail fast instead of hanging on connection errors.
+            Retry = { MaxRetries = 0 }
+        };
+        if (_handler is not null)
+            options.Transport = new HttpClientTransport(_handler);
+        return options;
+    }
+
+    // Handler is owned by the caller (e.g. WebApplicationFactory) when supplied, so it must
+    // not be disposed alongside the HttpClient.
+    private HttpClient CreateRawHttpClient()
+    {
+        var client = _handler is not null
+            ? new HttpClient(_handler, disposeHandler: false)
+            : new HttpClient();
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", AzlocalCredential.TokenValue);
+        return client;
+    }
 }

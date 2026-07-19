@@ -21,7 +21,7 @@ public static class StartCommand
         {
             var port = pr.GetValue(portOption);
 
-            if (port is < 1 or > 65535)
+            if (!IsValidPort(port))
             {
                 Console.Error.WriteLine($"Invalid port: {port}. Must be 1-65535.");
                 return;
@@ -52,13 +52,15 @@ public static class StartCommand
             }
 
             File.WriteAllText(pidFile, proc.Id.ToString());
-            Console.WriteLine($"AzLocal started on http://localhost:{port} (pid {proc.Id})");
+            Console.WriteLine($"AzLocal started on https://127.0.0.1:{port} (pid {proc.Id})");
         });
 
         return cmd;
     }
 
-    private static ProcessStartInfo BuildHostProcessInfo(int port)
+    internal static bool IsValidPort(int port) => port is >= 1 and <= 65535;
+
+    internal static ProcessStartInfo BuildHostProcessInfo(int port)
     {
         // When published, AzLocal.Host lives next to this binary.
         // Fall back to 'dotnet run' for local development.
@@ -71,7 +73,7 @@ public static class StartCommand
             return new ProcessStartInfo
             {
                 FileName = hostExe,
-                Arguments = $"--urls http://localhost:{port}",
+                Arguments = $"--urls https://127.0.0.1:{port}",
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
@@ -80,7 +82,7 @@ public static class StartCommand
         return new ProcessStartInfo
         {
             FileName = "dotnet",
-            Arguments = $"run --project src/AzLocal.Host --urls http://localhost:{port}",
+            Arguments = $"run --project src/AzLocal.Host --urls https://127.0.0.1:{port}",
             UseShellExecute = false,
             CreateNoWindow = true,
         };

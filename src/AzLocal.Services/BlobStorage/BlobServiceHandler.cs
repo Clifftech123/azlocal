@@ -23,18 +23,18 @@ public class BlobServiceHandler : IServiceHandler
         _state = state;
         _blobs = blobs;
         _logger = logger;
-        _baseUrl = (config["AzLocal:BaseUrl"] ?? "http://localhost").TrimEnd('/');
+        _baseUrl = (config["AzLocal:BaseUrl"] ?? "https://127.0.0.1").TrimEnd('/');
     }
 
     public void MapRoutes(WebApplication app)
     {
         app.MapGet(BlobRoutes.ListContainers, ListContainersAsync);
-        app.MapGet(BlobRoutes.Container,      ListBlobsAsync);
-        app.MapPut(BlobRoutes.Container,      CreateContainerAsync);
-        app.MapDelete(BlobRoutes.Container,   DeleteContainerAsync);
-        app.MapPut(BlobRoutes.BlobItem,       UploadBlobAsync);
-        app.MapGet(BlobRoutes.BlobItem,       DownloadBlobAsync);
-        app.MapDelete(BlobRoutes.BlobItem,    DeleteBlobAsync);
+        app.MapGet(BlobRoutes.Container, ListBlobsAsync);
+        app.MapPut(BlobRoutes.Container, CreateContainerAsync);
+        app.MapDelete(BlobRoutes.Container, DeleteContainerAsync);
+        app.MapPut(BlobRoutes.BlobItem, UploadBlobAsync);
+        app.MapGet(BlobRoutes.BlobItem, DownloadBlobAsync);
+        app.MapDelete(BlobRoutes.BlobItem, DeleteBlobAsync);
         app.MapMethods(BlobRoutes.BlobItem, ["HEAD"], GetBlobPropertiesAsync);
     }
 
@@ -48,7 +48,7 @@ public class BlobServiceHandler : IServiceHandler
         var xml = BuildXml(writer =>
         {
             writer.WriteStartElement("EnumerationResults");
-            writer.WriteAttributeString("ServiceEndpoint", $"{_baseUrl}/azu/{account}");
+            writer.WriteAttributeString("ServiceEndpoint", $"{_baseUrl}/{account}");
             writer.WriteStartElement("Containers");
             foreach (var c in containers)
             {
@@ -76,7 +76,7 @@ public class BlobServiceHandler : IServiceHandler
         var xml = BuildXml(writer =>
         {
             writer.WriteStartElement("EnumerationResults");
-            writer.WriteAttributeString("ServiceEndpoint", $"{_baseUrl}/azu/{account}");
+            writer.WriteAttributeString("ServiceEndpoint", $"{_baseUrl}/{account}");
             writer.WriteAttributeString("ContainerName", container);
             writer.WriteStartElement("Blobs");
             foreach (var b in blobs)
@@ -107,6 +107,9 @@ public class BlobServiceHandler : IServiceHandler
         if (await _state.ExistsAsync(key))
         {
             _logger.LogWarning("CreateContainer conflict account={Account} container={Container}", account, container);
+            // The SDK's CreateIfNotExistsAsync only swallows this 409 if it recognizes the
+            // x-ms-error-code — without it, the exception rethrows instead of returning null.
+            ctx.Response.Headers["x-ms-error-code"] = "ContainerAlreadyExists";
             return Results.Conflict();
         }
 
@@ -136,7 +139,12 @@ public class BlobServiceHandler : IServiceHandler
 
     private async Task<IResult> UploadBlobAsync(string account, string container, string blobName, HttpContext ctx)
     {
-        var contentType = ctx.Request.ContentType ?? "application/octet-stream";
+        // The real Put Blob API takes the stored content type from x-ms-blob-content-type —
+        // that's what BlobClientOptions.HttpHeaders.ContentType sends — not the request's own
+        // Content-Type header, which describes the transfer body and is often generic/absent.
+        var contentType = ctx.Request.Headers["x-ms-blob-content-type"].FirstOrDefault()
+            ?? ctx.Request.ContentType
+            ?? "application/octet-stream";
         await _blobs.WriteAsync(container, blobName, ctx.Request.Body, contentType);
 
         var etag = Guid.NewGuid().ToString("N");
@@ -167,7 +175,7 @@ public class BlobServiceHandler : IServiceHandler
         if (meta is null)
         {
             _logger.LogWarning("Blob not found account={Account} container={Container} blob={Blob}", account, container, blobName);
-            return Results.NotFound();
+            return NotFoundBlob(ctx);
         }
 
         Stream stream;
@@ -179,7 +187,7 @@ public class BlobServiceHandler : IServiceHandler
         {
             // Metadata exists but the file was deleted out-of-band — treat as not found.
             _logger.LogWarning(ex, "Blob file missing despite metadata account={Account} container={Container} blob={Blob}", account, container, blobName);
-            return Results.NotFound();
+            return NotFoundBlob(ctx);
         }
 
         ctx.Response.Headers["ETag"] = $"\"{meta.ETag}\"";
@@ -200,7 +208,7 @@ public class BlobServiceHandler : IServiceHandler
     private async Task<IResult> GetBlobPropertiesAsync(string account, string container, string blobName, HttpContext ctx)
     {
         var meta = await _state.GetAsync<BlobItem>(BlobKey(account, container, blobName));
-        if (meta is null) return Results.NotFound();
+        if (meta is null) return NotFoundBlob(ctx);
 
         ctx.Response.Headers["ETag"] = $"\"{meta.ETag}\"";
         ctx.Response.Headers["Last-Modified"] = meta.LastModified.ToString("R");
@@ -225,14 +233,31 @@ public class BlobServiceHandler : IServiceHandler
     private static void SetRequestId(HttpContext ctx) =>
         ctx.Response.Headers["x-ms-request-id"] = Guid.NewGuid().ToString();
 
+    // The SDK's ExistsAsync/DownloadIfExists-style convenience methods only swallow a 404 if
+    // they recognize the x-ms-error-code — without it, they rethrow instead of returning false/null.
+    private static IResult NotFoundBlob(HttpContext ctx)
+    {
+        ctx.Response.Headers["x-ms-error-code"] = "BlobNotFound";
+        return Results.NotFound();
+    }
+
     // Uses XmlWriter so blob/container names with <, >, & are safely escaped.
     private static string BuildXml(Action<XmlWriter> build)
     {
         var sb = new StringBuilder();
-        using var writer = XmlWriter.Create(sb, new XmlWriterSettings { Indent = true });
-        writer.WriteStartDocument();
-        build(writer);
-        writer.WriteEndDocument();
+        // Block-scoped `using` so the writer's internal buffer is flushed via Dispose()
+        // *before* sb.ToString() runs — a `using var` here would read sb in the same
+        // scope it's declared, ahead of the deferred Dispose, and return an empty string.
+        // OmitXmlDeclaration avoids a mismatch: XmlWriter always declares "utf-16" for a
+        // StringBuilder/TextWriter target (since .NET strings are UTF-16), but Results.Content
+        // actually sends the body as UTF-8 — an explicit "utf-16" declaration over UTF-8 bytes
+        // makes the Azure SDK's XML parser reject the response as malformed.
+        using (var writer = XmlWriter.Create(sb, new XmlWriterSettings { Indent = true, OmitXmlDeclaration = true }))
+        {
+            writer.WriteStartDocument();
+            build(writer);
+            writer.WriteEndDocument();
+        }
         return sb.ToString();
     }
 

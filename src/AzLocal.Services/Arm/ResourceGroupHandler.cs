@@ -26,9 +26,9 @@ public class ResourceGroupHandler : IServiceHandler
 
     public void MapRoutes(WebApplication app)
     {
-        app.MapGet(ArmRoutes.ResourceGroups,   ListResourceGroupsAsync);
-        app.MapGet(ArmRoutes.ResourceGroup,    GetResourceGroupAsync);
-        app.MapPut(ArmRoutes.ResourceGroup,    CreateOrUpdateResourceGroupAsync);
+        app.MapGet(ArmRoutes.ResourceGroups, ListResourceGroupsAsync);
+        app.MapGet(ArmRoutes.ResourceGroup, GetResourceGroupAsync);
+        app.MapPut(ArmRoutes.ResourceGroup, CreateOrUpdateResourceGroupAsync);
         app.MapDelete(ArmRoutes.ResourceGroup, DeleteResourceGroupAsync);
     }
 
@@ -77,9 +77,9 @@ public class ResourceGroupHandler : IServiceHandler
 
         var rg = new ResourceGroup
         {
-            Name             = resourceGroupName,
-            Location         = location,
-            SubscriptionId   = subscriptionId,
+            Name = resourceGroupName,
+            Location = location,
+            SubscriptionId = subscriptionId,
             ProvisioningState = "Succeeded"
         };
 
@@ -111,10 +111,10 @@ public class ResourceGroupHandler : IServiceHandler
 
     private static object ResourceGroupResponse(string subscriptionId, ResourceGroup rg) => new
     {
-        id       = $"/subscriptions/{subscriptionId}/resourceGroups/{rg.Name}",
-        name     = rg.Name,
+        id = $"/subscriptions/{subscriptionId}/resourceGroups/{rg.Name}",
+        name = rg.Name,
         location = rg.Location,
-        tags     = rg.Tags,
+        tags = rg.Tags,
         properties = new { provisioningState = rg.ProvisioningState }
     };
 
