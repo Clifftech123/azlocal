@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\AzLocal.Services\AzLocal.Services.csproj" />
     <ProjectReference Include="..\..\src\AzLocal.State\AzLocal.State.csproj" />
     <ProjectReference Include="..\..\src\AzLocal.Middleware\AzLocal.Middleware.csproj" />
+    <ProjectReference Include="..\..\src\AzLocal.Cli\AzLocal.Cli.csproj" />
   </ItemGroup>
 
 </Project>

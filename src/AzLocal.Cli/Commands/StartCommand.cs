@@ -21,7 +21,7 @@ public static class StartCommand
         {
             var port = pr.GetValue(portOption);
 
-            if (port is < 1 or > 65535)
+            if (!IsValidPort(port))
             {
                 Console.Error.WriteLine($"Invalid port: {port}. Must be 1-65535.");
                 return;
@@ -58,7 +58,9 @@ public static class StartCommand
         return cmd;
     }
 
-    private static ProcessStartInfo BuildHostProcessInfo(int port)
+    internal static bool IsValidPort(int port) => port is >= 1 and <= 65535;
+
+    internal static ProcessStartInfo BuildHostProcessInfo(int port)
     {
         // When published, AzLocal.Host lives next to this binary.
         // Fall back to 'dotnet run' for local development.
