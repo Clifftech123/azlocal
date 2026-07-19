@@ -194,29 +194,6 @@ See [docs/SDK_COMPAT.md](docs/SDK_COMPAT.md) for the details behind each "No", a
 
 ---
 
-## Using in CI (GitHub Actions)
-
-```yaml
-- name: Install azlocal
-  run: dotnet tool install -g azlocal
-
-- name: Start azlocal
-  run: azlocal start
-
-- name: Wait for azlocal to be ready
-  run: azlocal wait
-
-- name: Run tests
-  run: dotnet test
-
-- name: Stop azlocal
-  run: azlocal stop
-```
-
-Only needed if your tests connect to a separately-running azlocal process. If you use Option B from [Using azlocal in your own tests](#using-azlocal-in-your-own-tests) instead, `dotnet test` alone is enough — no `start`/`stop` steps required.
-
----
-
 ## Requirements
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
