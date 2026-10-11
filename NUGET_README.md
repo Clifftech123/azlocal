@@ -6,6 +6,8 @@ A local Azure emulator for .NET development and testing. Use the official Azure 
 
 Requires the .NET 10 SDK. Supports Blob Storage, Key Vault secrets, Service Bus queues, resource groups, and local managed identity tokens. See [supported operations](https://github.com/Clifftech123/azlocal/blob/main/docs/SDK_COMPAT.md) for API coverage.
 
+**Windows:** Smart App Control can block this alpha's launcher before startup. See the [known signing issue](https://github.com/Clifftech123/azlocal/blob/main/docs/WINDOWS_APP_CONTROL.md).
+
 ## Installation
 
 Install and start the emulator:

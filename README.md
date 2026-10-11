@@ -64,6 +64,8 @@ dotnet add package AzLocal.Client --version 0.1.0-alpha.1
 
 Check [GitHub releases](https://github.com/Clifftech123/azlocal/releases) for published versions and changes. The Core dependency is installed automatically with the client library. Use the [source setup](#contributing) if you want to work on the project or test unreleased changes.
 
+**Windows Application Control:** the current alpha can be blocked before startup on systems enforcing Smart App Control. NuGet installation succeeding does not mean Windows permits execution. See [the known signing issue](docs/WINDOWS_APP_CONTROL.md).
+
 Once installed, start the emulator:
 
 ```sh
@@ -131,6 +133,7 @@ Replace `<published-version>` with the version you want from [Releases](https://
 | Symptom | What to check |
 | --- | --- |
 | `azlocal` command not found | Confirm `dotnet tool list --global` includes it and your .NET global tools directory is on `PATH`; reopen the terminal after installation. |
+| `An Application Control policy has blocked this file` | Windows blocked the executable before startup. Certificate trust will not fix it; see [Windows App Control](docs/WINDOWS_APP_CONTROL.md). |
 | NuGet package or version not found | Confirm that version is published and indexed. Before the first release, use the source setup below. |
 | Certificate error, `wait` timeout, or `NOT running` | Verify certificate trust and hostname coverage; check the matching HTTP port. See [HTTPS setup](docs/HTTPS.md). |
 | Host exits immediately | Check HTTP and AMQP port conflicts. Run the source host in the foreground to see startup errors: `dotnet run --project src/AzLocal.Host -- --urls https://127.0.0.1:4566`. |
