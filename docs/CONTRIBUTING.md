@@ -28,3 +28,7 @@ tests/
   AzLocal.IntegrationTests/  # Real Azure SDKs against an in-process host (WebApplicationFactory)
   AzLocal.CompatTests/
 ```
+
+## Package versions
+
+NuGet versions are managed in [Directory.Packages.props](../Directory.Packages.props). Projects list the packages they use with versionless `PackageReference` entries. To add a dependency, add its `PackageVersion` centrally and its `PackageReference` to the project. To update a dependency, change its central version and run `dotnet restore` and `dotnet test`.

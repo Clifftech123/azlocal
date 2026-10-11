@@ -1,3 +1,40 @@
+# Configuration
+
+Configure the emulator host before starting it. Client registrations made with `AddAzLocal` do not configure the host's state store.
+
+## Host settings template
+
+When running from source, the host reads `src/AzLocal.Host/appsettings.json`. This `AzLocal` section shows SQLite storage with custom directories; replace the paths with absolute paths for your machine:
+
+```json
+{
+  "AzLocal": {
+    "StateMode": "Sqlite",
+    "SqlitePath": "/absolute/path/to/project/.azlocal",
+    "SnapshotPath": "/absolute/path/to/project/.azlocal",
+    "BlobStorePath": "/absolute/path/to/project/.azlocal/blobs",
+    "AmqpPort": 5672,
+    "AmqpEnabled": true
+  }
+}
+```
+
+Paths refer to directories. The host creates them, then creates `state.db` or `state.json` as appropriate. `SnapshotPath` is used only in `JsonSnapshot` mode; `SqlitePath` is used only in `Sqlite` mode. SQLite needs no separate database server or schema setup.
+
+For the installed CLI, set environment variables in the shell that runs `azlocal start`. The host process inherits them. Your application's `appsettings.json` does not configure that separate process. Environment variables use two underscores in place of the colon:
+
+| Setting | Environment variable | Default |
+| --- | --- | --- |
+| `AzLocal:StateMode` | `AzLocal__StateMode` | `InMemory` |
+| `AzLocal:SqlitePath` | `AzLocal__SqlitePath` | `<system-temp>/azlocal` |
+| `AzLocal:SnapshotPath` | `AzLocal__SnapshotPath` | `<system-temp>/azlocal` |
+| `AzLocal:BlobStorePath` | `AzLocal__BlobStorePath` | `<system-temp>/azlocal/blobs` |
+| `AzLocal:AmqpPort` | `AzLocal__AmqpPort` | `5672` |
+| `AzLocal:AmqpEnabled` | `AzLocal__AmqpEnabled` | `true` |
+
+Unset or blank storage paths use the defaults. Use `InMemory`, `JsonSnapshot`, or `Sqlite` with this exact spelling. Storage modes retain metadata, secrets, and messages; blob contents are always stored separately on disk.
+
+See the [README storage setup](../README.md#sqlite-setup) for PowerShell and shell examples. Use a custom directory to keep state outside system temporary storage. Restart the host when changing configuration.
 
 ## Local-only security and storage
 

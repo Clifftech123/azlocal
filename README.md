@@ -243,13 +243,65 @@ For tests that run the host inside the test process, use `WebApplicationFactory<
 
 ## State and configuration
 
-The default state store is in memory. Resource metadata, secrets, and messages are lost when the host stops. Blob contents are stored on disk in the system temporary directory under `azlocal/blobs`.
+Choose where the emulator stores resource metadata, secrets, and messages:
 
-Set `AzLocal:StateMode` to `JsonSnapshot` or `Sqlite` to keep state between runs. You can also configure the state and blob directories. Run one host per state directory.
+| State mode | Storage | Survives a host restart? |
+| --- | --- | --- |
+| `InMemory` (default) | Memory | No |
+| `JsonSnapshot` | `<system-temp>/azlocal/state.json` | Yes, while the file exists |
+| `Sqlite` | `<system-temp>/azlocal/state.db` | Yes, while the file exists |
 
-The blob storage format changed to separate accounts and preserve case-sensitive names. Blob data created with the previous format needs to be recreated; there is no automatic migration. `azlocal reset` clears the default state directory, but leaves custom storage directories alone.
+Blob contents are stored separately in `<system-temp>/azlocal/blobs` in every mode. With `InMemory`, blob metadata is lost when the host stops, even though the files remain. Choose a persistent state mode to use those blobs after restarting.
 
-See [Configuration](docs/CONFIGURATION.md) for storage details.
+The system temporary directory comes from `Path.GetTempPath()`: usually `%TEMP%` on Windows and `/tmp` on Linux. For data you want to keep, configure a directory outside system temporary storage.
+
+### SQLite setup
+
+SQLite runs inside the emulator. You do not need SQL Server, Docker, a connection string, or a SQL schema script. azlocal creates `state.db` and its table automatically.
+
+Set the host's environment variables before starting it. These examples keep the database and blob files in a project-local `.azlocal` directory.
+
+Windows PowerShell:
+
+```powershell
+azlocal stop
+$stateDirectory = Join-Path (Get-Location) ".azlocal"
+$env:AzLocal__StateMode = "Sqlite"
+$env:AzLocal__SqlitePath = $stateDirectory
+$env:AzLocal__BlobStorePath = Join-Path $stateDirectory "blobs"
+azlocal start
+azlocal wait
+```
+
+Linux or macOS:
+
+```sh
+azlocal stop
+export AzLocal__StateMode=Sqlite
+export AzLocal__SqlitePath="$PWD/.azlocal"
+export AzLocal__BlobStorePath="$PWD/.azlocal/blobs"
+azlocal start
+azlocal wait
+```
+
+The directories are created automatically. These variables also apply when starting the host with `dotnet run`. Restart the host after changing its storage settings. `AddAzLocal` configures application clients; storage settings belong to the emulator host.
+
+### Temporary state and other options
+
+For SQLite in the default temporary directory, set only `AzLocal__StateMode=Sqlite` in a shell with no custom storage paths set. For a JSON snapshot, use `JsonSnapshot` and optionally set `AzLocal__SnapshotPath`. For disposable metadata and messages, use `InMemory`.
+
+| Environment variable | Purpose |
+| --- | --- |
+| `AzLocal__StateMode` | `InMemory`, `JsonSnapshot`, or `Sqlite`; use this exact spelling |
+| `AzLocal__SqlitePath` | Directory containing `state.db` |
+| `AzLocal__SnapshotPath` | Directory containing `state.json` |
+| `AzLocal__BlobStorePath` | Directory containing blob files |
+
+Run one host per state directory. `azlocal reset` clears the default temporary state directory; it does not clear custom directories such as `.azlocal`. Exclude that directory from version control; this repository already does.
+
+The blob storage format changed to separate accounts and preserve case-sensitive names. Blob data created with the previous format needs to be recreated; there is no automatic migration.
+
+See [Configuration](docs/CONFIGURATION.md) for the host settings template and endpoint options.
 
 azlocal accepts fake credentials and only allows local connections. Use test data and test secrets. Keep the emulator on your machine or inside your test environment.
 
