@@ -1,24 +1,19 @@
-![azlocal — Azure services. Local development.](https://raw.githubusercontent.com/Clifftech123/azlocal/main/assets/branding/banner.png)
+![azlocal logo](https://raw.githubusercontent.com/Clifftech123/azlocal/main/assets/branding/icon.png)
 
 # azlocal
 
 [![CI](https://github.com/Clifftech123/azlocal/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Clifftech123/azlocal/actions/workflows/ci.yml)
-[![NuGet: release pending](https://img.shields.io/badge/NuGet-release%20pending-0078D4)](https://github.com/Clifftech123/azlocal/releases)
+[![NuGet](https://img.shields.io/nuget/vpre/azlocal?label=NuGet&color=0078D4)](https://www.nuget.org/packages/azlocal)
+[![Downloads](https://img.shields.io/nuget/dt/azlocal?color=0078D4)](https://www.nuget.org/packages/azlocal)
 [![License: MIT](https://img.shields.io/badge/license-MIT-0078D4)](https://github.com/Clifftech123/azlocal/blob/main/LICENSE)
 
-Run a local Azure emulator for .NET development and automated tests. Work with blobs, test secrets, queues, and resource groups through the official Azure SDK clients, without an Azure subscription.
+**Run Azure services locally with the official .NET SDKs.**
 
-## Packages
+Test blob uploads, secrets, message queues, and resource groups on your machine. No Azure subscription or cloud credentials are needed. Requires the **.NET 10 SDK**.
 
-| Package | Use |
-| --- | --- |
-| `azlocal` | Command-line tool and bundled emulator host |
-| `AzLocal.Client` | Local Azure SDK clients registered through dependency injection |
-| `AzLocal.Core` | Shared dependency; installed automatically with the client |
+## Quick start
 
-You need the .NET 10 SDK. The first planned testing release is `0.1.0-alpha.1`. These commands work after that version is published.
-
-## Start the emulator
+Install the emulator and start it:
 
 ```sh
 dotnet tool install --global azlocal --version 0.1.0-alpha.1
@@ -27,29 +22,24 @@ azlocal start
 azlocal wait
 ```
 
-The HTTPS endpoint is `https://127.0.0.1:4566`; Service Bus uses local AMQP on port `5672`. Certificate trust depends on your operating system. Use `azlocal status` to check the host and `azlocal stop` to stop it.
+| Endpoint | Address |
+| --- | --- |
+| HTTPS services | `https://127.0.0.1:4566` |
+| Service Bus AMQP | `127.0.0.1:5672` |
 
-### Certificate setup
+`azlocal status` checks the host. `azlocal stop` stops it. Version `0.1.0-alpha.1` is a testing prerelease; see [release notes](https://github.com/Clifftech123/azlocal/releases) for updates.
 
-`azlocal trust-cert` runs `dotnet dev-certs https --trust`. Run it as the same user who starts the emulator and approve the trust prompt when requested. Verify with:
+**Certificate setup:** approve the trust prompt, then run `dotnet dev-certs https --check --trust`. On Linux, use `dotnet dev-certs https --trust --verbose` and follow its instructions. Older certificates may not cover `127.0.0.1`. See the [HTTPS guide](https://github.com/Clifftech123/azlocal/blob/main/docs/HTTPS.md) for platform and CI setup.
 
-```sh
-dotnet dev-certs https --check --trust
-```
+## Use it in your application
 
-On Linux, run `dotnet dev-certs https --trust --verbose` and follow its trust-store instructions. Older certificates may not cover `127.0.0.1`. A trust problem can cause `wait` to time out even when the host process is running. See the [platform and CI HTTPS guide](https://github.com/Clifftech123/azlocal/blob/main/docs/HTTPS.md).
-
-To change the HTTPS port, stop the host, run `azlocal start --port 5001`, and use `azlocal wait --port 5001`. Match that address in `options.BaseUrl`. The AMQP port is configured separately; see [host configuration](https://github.com/Clifftech123/azlocal/blob/main/docs/CONFIGURATION.md).
-
-## Connect your application
-
-From your application project:
+Add the client library to your application project:
 
 ```sh
 dotnet add package AzLocal.Client --version 0.1.0-alpha.1
 ```
 
-Register clients in an ASP.NET Core application's `Program.cs`:
+Register only the resources your application uses. For example, in an ASP.NET Core app's `Program.cs`:
 
 ```csharp
 using AzLocal.Client;
@@ -58,56 +48,49 @@ using Azure.Storage.Blobs;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddAzLocal(options =>
 {
-    options.BaseUrl = "https://127.0.0.1:4566";
     options.BlobAccountName = "myaccount";
     options.BlobContainerName = "uploads";
-    options.KeyVaultName = "myvault";
-    options.ServiceBusQueueName = "myqueue";
 });
-builder.Services.AddScoped<UploadService>();
 
 var app = builder.Build();
 app.MapPost("/uploads/{name}", async (
-    string name, HttpRequest request, UploadService uploads,
+    string name, HttpRequest request, BlobContainerClient container,
     CancellationToken cancellationToken) =>
 {
-    await uploads.UploadAsync(name, request.Body, cancellationToken);
+    await container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+    await container.GetBlobClient(name).UploadAsync(
+        request.Body, overwrite: true, cancellationToken: cancellationToken);
     return Results.Ok();
 });
 app.Run();
-
-public sealed class UploadService(BlobContainerClient container)
-{
-    public async Task UploadAsync(
-        string name, Stream content, CancellationToken cancellationToken)
-    {
-        await container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        await container.GetBlobClient(name).UploadAsync(
-            content, overwrite: true, cancellationToken: cancellationToken);
-    }
-}
 ```
 
-SDK clients are singletons. Application services can be scoped or transient. The emulator must already be running; registration does not start the host.
+Clients are singletons and can also be injected into scoped or transient application services. The emulator must be running before you make requests.
 
-## Available services
+Set `KeyVaultName` to inject `SecretClient`, or `ServiceBusQueueName` to inject `ServiceBusSender` and `ServiceBusReceiver`. For custom ports, match `BaseUrl` and `AmqpPort` to the host settings. See [DI examples](https://github.com/Clifftech123/azlocal#connect-your-application).
 
-| Service | Supported local operations |
+## Supported services
+
+| Service | Local operations |
 | --- | --- |
-| Blob Storage | Container creation and deletion; blob upload, download, listing, properties, and deletion |
-| Key Vault Secrets | Set, get, list, and delete secrets; read secret versions |
-| Service Bus queues | AMQP single and batch sends, peek, receive, complete, abandon, lock renewal, and dead-letter queues |
-| Resource management | Create, read, list, and delete resource groups; read the configured subscription |
-| Managed identity | Acquire local test tokens through the registered `ManagedIdentityCredential` |
+| Blob Storage | Containers; upload, download, list, delete, properties |
+| Key Vault Secrets | Set, get, list, delete, versions |
+| Service Bus queues | AMQP sends and batches, peek, receive, settlement, lock renewal, dead-letter queues |
+| Resource management | Resource groups and subscription discovery |
+| Managed identity | Local test-token acquisition |
 
-These operations cover part of the Azure APIs. Managed identity returns test tokens. State can use memory, JSON snapshots, or SQLite. Old development blob data must be recreated after storage format changes.
+Support covers these operations rather than the complete Azure APIs. Managed identity returns test tokens. [SDK compatibility](https://github.com/Clifftech123/azlocal/blob/main/docs/SDK_COMPAT.md) lists the limits.
 
-## Documentation and feedback
+## Choose your package
 
-- [Configuration, examples, and storage setup](https://github.com/Clifftech123/azlocal#readme)
-- [SDK compatibility and limitations](https://github.com/Clifftech123/azlocal/blob/main/docs/SDK_COMPAT.md)
-- [Report an issue](https://github.com/Clifftech123/azlocal/issues)
-- [Release notes](https://github.com/Clifftech123/azlocal/releases)
-- [Setup troubleshooting and upgrades](https://github.com/Clifftech123/azlocal#troubleshooting)
+| Package | Purpose |
+| --- | --- |
+| **azlocal** | CLI with the bundled emulator host |
+| **AzLocal.Client** | DI registration for local Azure SDK clients |
+| **AzLocal.Core** | Shared dependency, installed automatically with the client |
 
-azlocal is an independent project for local development and testing. It is not affiliated with Microsoft. Licensed under MIT.
+State can use memory, JSON snapshots, or SQLite. Use a persistent state mode to retain metadata and messages after restart. [Configuration](https://github.com/Clifftech123/azlocal/blob/main/docs/CONFIGURATION.md) covers storage and ports; [troubleshooting](https://github.com/Clifftech123/azlocal#troubleshooting) covers startup and certificate errors.
+
+**[Documentation](https://github.com/Clifftech123/azlocal#readme) · [Release notes](https://github.com/Clifftech123/azlocal/releases) · [Report an issue](https://github.com/Clifftech123/azlocal/issues)**
+
+MIT licensed. An independent project for local development and testing, not affiliated with Microsoft.
