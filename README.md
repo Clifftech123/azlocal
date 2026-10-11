@@ -45,7 +45,7 @@ The suggested build order is Queue Storage, Table Storage, App Configuration, th
 
 ## Install and run
 
-You need the .NET 10 SDK.
+You need the .NET 10 SDK on Windows, Linux, or macOS. Check it with `dotnet --list-sdks`; an application runtime alone does not include the certificate setup tools. Source builds use the SDK selection in `global.json`.
 
 The CLI runs the emulator. The client library connects your application to it. The first testing release is `0.1.0-alpha.1`. After that version is published to NuGet, install it with:
 
@@ -73,6 +73,31 @@ The host runs in the background at `https://127.0.0.1:4566`. `wait` checks that 
 
 Use `127.0.0.1` when configuring Blob Storage clients so the SDK parses the local account paths correctly.
 
+### Certificate trust
+
+Run `azlocal trust-cert` once before starting the host, using the same user account. It calls `dotnet dev-certs https --trust`. Accept the operating system's trust prompt, then verify:
+
+```sh
+dotnet dev-certs https --check --trust
+```
+
+On Linux, use `dotnet dev-certs https --trust --verbose` if setup needs additional trust-store tools or environment settings. Follow the SDK's output. If you already have a certificate from an older SDK, it may need replacement to cover `127.0.0.1`.
+
+See [HTTPS setup](docs/HTTPS.md) for Windows, macOS, Linux, WSL, and CI instructions. An untrusted certificate can make `wait` time out or `status` report `NOT running` even when the process has started.
+
+### Custom ports
+
+Stop the existing host before changing ports:
+
+```sh
+azlocal stop
+azlocal start --port 5001
+azlocal wait --port 5001 --timeout 60
+azlocal status --port 5001
+```
+
+Set `options.BaseUrl = "https://127.0.0.1:5001"` in your application's `AddAzLocal` registration. Service Bus remains on `5672`: changing the HTTP port does not change AMQP. To use another AMQP port, set the host environment variable `AzLocal__AmqpPort` before starting it and match `options.AmqpPort` in the client. See [Configuration](docs/CONFIGURATION.md#sdk-endpoints).
+
 ### CLI commands
 
 | Command | Purpose |
@@ -83,6 +108,35 @@ Use `127.0.0.1` when configuring Blob Storage clients so the SDK parses the loca
 | `stop` | Stop the host started by the CLI |
 | `reset` | Stop the host and delete the default temporary state directory |
 | `trust-cert` | Trust the ASP.NET Core development certificate |
+
+The CLI tracks one background host per system temporary azlocal directory, including when you choose another port. Stop it before starting a replacement. For isolated parallel tests, use test fixtures with separate HTTP/AMQP ports and state directories.
+
+### Update or uninstall
+
+After a newer version is published, stop the host and select the same version for the tool and client package:
+
+```sh
+azlocal stop
+dotnet tool update --global azlocal --version <published-version>
+dotnet add package AzLocal.Client --version <published-version>
+```
+
+Replace `<published-version>` with the version you want from [Releases](https://github.com/Clifftech123/azlocal/releases), then restart the host. To remove the tool, run `azlocal stop` followed by `dotnet tool uninstall --global azlocal`. Uninstalling the tool does not remove its stored data or certificate trust.
+
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| `azlocal` command not found | Confirm `dotnet tool list --global` includes it and your .NET global tools directory is on `PATH`; reopen the terminal after installation. |
+| NuGet package or version not found | Confirm that version is published and indexed. Before the first release, use the source setup below. |
+| Certificate error, `wait` timeout, or `NOT running` | Verify certificate trust and hostname coverage; check the matching HTTP port. See [HTTPS setup](docs/HTTPS.md). |
+| Host exits immediately | Check HTTP and AMQP port conflicts. Run the source host in the foreground to see startup errors: `dotnet run --project src/AzLocal.Host -- --urls https://127.0.0.1:4566`. |
+| Service Bus connection fails | Match the host and client AMQP ports, confirm AMQP is enabled, and check whether another process uses that port. |
+| Injected client cannot be resolved | Set the resource names required for that client in `AddAzLocal`; register your application service too. |
+| Data disappears after restart | `InMemory` loses metadata and messages. Use `Sqlite` or `JsonSnapshot` and persistent directories. |
+| `reset` leaves custom data behind | It clears only the default temporary azlocal directory; custom directories need separate cleanup. |
+
+For an issue report, include the azlocal version, OS, .NET SDK version, command or SDK operation, relevant configuration, and error output. Remove private values before sharing logs. Report it in [GitHub Issues](https://github.com/Clifftech123/azlocal/issues).
 
 ## Connect your application
 

@@ -20,6 +20,8 @@ Set `BlobAccountName`, `BlobContainerName`, `KeyVaultName`, and `ServiceBusQueue
 
 Trust the development certificate before using the HTTP SDK clients. Token-based Blob Storage clients need HTTPS. Use the literal IP `127.0.0.1` so the Blob SDK recognizes account paths.
 
+See [HTTPS setup](HTTPS.md) for certificate trust, Linux diagnostics, older certificates, and CI setup.
+
 Key Vault uses a local authentication challenge. The registered client disables challenge resource verification for the local endpoint. This setting is intended for the emulator.
 
 ## Service Bus
