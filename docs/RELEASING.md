@@ -17,11 +17,25 @@ Host internals and test projects are not published as separate packages. The CLI
 ## Before the first publication
 
 1. Wait for the `develop` CI workflow to pass on Windows, Linux, and macOS. It builds, runs the test suites, packs all three packages, and installs them into a fresh application for live SDK checks.
-2. Review and merge the `develop` pull request into `main`. Release tags must point to commits merged into `main`.
-3. Create a NuGet.org API key with permission to create and push `azlocal`, `AzLocal.Client`, and `AzLocal.Core`. A key scoped only to `AzureStorage.Standard.*` cannot publish these packages.
-4. Add that key as the repository Actions secret `NUGET_API_KEY` in [GitHub settings](https://github.com/Clifftech123/azlocal/settings/secrets/actions). Do not put the key in source files, a workflow, a release description, or an issue.
+2. Configure NuGet Trusted Publishing as described below.
+3. Review and merge the `develop` pull request into `main`. Release tags must point to commits merged into `main`.
 
-Alternatively, run `gh secret set NUGET_API_KEY --repo Clifftech123/azlocal` locally and enter the key at its prompt. This repository currently uses an API-key publishing workflow; NuGet trusted publishing can be added later.
+## NuGet Trusted Publishing setup
+
+In your NuGet account, open **Trusted Publishing → Create** and select GitHub Actions. Set these fields:
+
+| Field | Value |
+| --- | --- |
+| Repository owner | `Clifftech123` |
+| Repository | `azlocal` |
+| Workflow file | `release.yml` (filename only) |
+| Environment | Leave empty; the publishing job does not use a GitHub environment |
+
+Choose the NuGet user or organization that will own the packages. Configure policy scopes to allow creating packages and publishing new versions of `azlocal`, `AzLocal.Client`, and `AzLocal.Core`. Existing policies scoped to `AzureStorage.Standard` do not cover these packages.
+
+In [GitHub Actions variables](https://github.com/Clifftech123/azlocal/settings/variables/actions), create a repository variable named `NUGET_USER` containing your NuGet profile username, not your email address. The username identifies the account used for the token exchange and is not a publishing secret.
+
+The workflow uses `NuGet/login@v1` and GitHub OIDC to obtain a temporary publishing credential after all platform checks pass. No stored `NUGET_API_KEY` secret is required. Authentication cannot be verified until the NuGet policy and GitHub variable are configured. See [NuGet's Trusted Publishing documentation](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing).
 
 ## First prerelease
 
@@ -79,8 +93,9 @@ The optional `Pack.ps1 -Version` argument checks an expected version against Git
 
 ## If publication fails
 
-- Missing key: add `NUGET_API_KEY` in the repository's Actions secrets.
-- NuGet authorization failure: check that the key is valid and can publish all three package IDs.
+- Missing username: set the `NUGET_USER` repository variable to your NuGet profile username.
+- Trusted Publishing login failure: check the NuGet policy owner, repository, workflow filename, and environment match this workflow, and that the policy is active.
+- NuGet authorization failure: check the policy scopes allow creating and updating all three package IDs and that the publishing account has the required ownership permissions.
 - Version/prerelease mismatch: use a suffixed version for a prerelease and an unsuffixed version for a stable release.
 - Source check failure: merge the release commit into `main` before creating the release.
 - Build, test, or install failure: fix it on `develop`, rerun CI, and merge the fix before retrying a release.
