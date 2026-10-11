@@ -36,6 +36,8 @@ public static class EmulatorBuilder
         builder.Services.AddSingleton<IServiceHandler, ResourceGroupHandler>();
         builder.Services.AddSingleton<IServiceHandler, SubscriptionHandler>();
 
+        builder.Services.AddSingleton<ServiceBusCoordinator>();
+        builder.Services.AddHostedService<ServiceBusAmqpHost>();
         builder.Services.AddAuthorization();
 
         return builder;

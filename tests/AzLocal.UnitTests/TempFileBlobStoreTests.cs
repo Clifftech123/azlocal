@@ -19,6 +19,36 @@ public class TempFileBlobStoreTests : IDisposable
             Directory.Delete(_dir, recursive: true);
     }
 
+    [Theory]
+    [InlineData("../../outside.txt")]
+    [InlineData("C:\\outside.txt")]
+    [InlineData("/outside.txt")]
+    [InlineData("..\\..\\outside.txt")]
+    public async Task UntrustedNamesRemainInsideStorage(string name)
+    {
+        var store = NewStore();
+        await store.WriteAsync("../../account", "../container", name, ToStream("safe"), "text/plain");
+        var files = Directory.GetFiles(_dir, "*", SearchOption.AllDirectories);
+        Assert.Single(files);
+        Assert.StartsWith(Path.GetFullPath(_dir) + Path.DirectorySeparatorChar, files[0]);
+        await using var stream = await store.ReadAsync("../../account", "../container", name);
+        Assert.Equal(4, stream.Length);
+    }
+
+    [Fact]
+    public async Task AccountsAndCaseSensitiveBlobNamesAreIsolated()
+    {
+        var store = NewStore();
+        await store.WriteAsync("a", "shared", "File", ToStream("first"), "text/plain");
+        await store.WriteAsync("b", "shared", "File", ToStream("second"), "text/plain");
+        await store.WriteAsync("b", "shared", "file", ToStream("third"), "text/plain");
+        await store.DeleteContainerAsync("a", "shared");
+        await using var upper = await store.ReadAsync("b", "shared", "File");
+        await using var lower = await store.ReadAsync("b", "shared", "file");
+        Assert.Equal("second", await new StreamReader(upper).ReadToEndAsync());
+        Assert.Equal("third", await new StreamReader(lower).ReadToEndAsync());
+    }
+
     private TempFileBlobStore NewStore() =>
         new(new InMemoryConfig("AzLocal:BlobStorePath", _dir));
 
@@ -29,9 +59,9 @@ public class TempFileBlobStoreTests : IDisposable
     {
         var store = NewStore();
 
-        await store.WriteAsync("mycontainer", "file.txt", ToStream("hello world"), "text/plain");
+        await store.WriteAsync("acct", "mycontainer", "file.txt", ToStream("hello world"), "text/plain");
 
-        await using var stream = await store.ReadAsync("mycontainer", "file.txt");
+        await using var stream = await store.ReadAsync("acct", "mycontainer", "file.txt");
         using var reader = new StreamReader(stream);
         Assert.Equal("hello world", await reader.ReadToEndAsync());
     }
@@ -40,11 +70,11 @@ public class TempFileBlobStoreTests : IDisposable
     public async Task WriteAsync_OverwritesExistingBlob()
     {
         var store = NewStore();
-        await store.WriteAsync("mycontainer", "file.txt", ToStream("first"), "text/plain");
+        await store.WriteAsync("acct", "mycontainer", "file.txt", ToStream("first"), "text/plain");
 
-        await store.WriteAsync("mycontainer", "file.txt", ToStream("second"), "text/plain");
+        await store.WriteAsync("acct", "mycontainer", "file.txt", ToStream("second"), "text/plain");
 
-        await using var stream = await store.ReadAsync("mycontainer", "file.txt");
+        await using var stream = await store.ReadAsync("acct", "mycontainer", "file.txt");
         using var reader = new StreamReader(stream);
         Assert.Equal("second", await reader.ReadToEndAsync());
     }
@@ -54,9 +84,9 @@ public class TempFileBlobStoreTests : IDisposable
     {
         var store = NewStore();
 
-        await store.WriteAsync("mycontainer", "folder/subfolder/file.txt", ToStream("nested"), "text/plain");
+        await store.WriteAsync("acct", "mycontainer", "folder/subfolder/file.txt", ToStream("nested"), "text/plain");
 
-        await using var stream = await store.ReadAsync("mycontainer", "folder/subfolder/file.txt");
+        await using var stream = await store.ReadAsync("acct", "mycontainer", "folder/subfolder/file.txt");
         using var reader = new StreamReader(stream);
         Assert.Equal("nested", await reader.ReadToEndAsync());
     }
@@ -66,7 +96,7 @@ public class TempFileBlobStoreTests : IDisposable
     {
         var store = NewStore();
 
-        await Assert.ThrowsAsync<FileNotFoundException>(() => store.ReadAsync("mycontainer", "missing.txt"));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => store.ReadAsync("acct", "mycontainer", "missing.txt"));
     }
 
     [Fact]
@@ -74,27 +104,27 @@ public class TempFileBlobStoreTests : IDisposable
     {
         var store = NewStore();
 
-        Assert.False(await store.ExistsAsync("mycontainer", "missing.txt"));
+        Assert.False(await store.ExistsAsync("acct", "mycontainer", "missing.txt"));
     }
 
     [Fact]
     public async Task ExistsAsync_ReturnsTrue_AfterWrite()
     {
         var store = NewStore();
-        await store.WriteAsync("mycontainer", "file.txt", ToStream("data"), "text/plain");
+        await store.WriteAsync("acct", "mycontainer", "file.txt", ToStream("data"), "text/plain");
 
-        Assert.True(await store.ExistsAsync("mycontainer", "file.txt"));
+        Assert.True(await store.ExistsAsync("acct", "mycontainer", "file.txt"));
     }
 
     [Fact]
     public async Task DeleteAsync_RemovesBlob()
     {
         var store = NewStore();
-        await store.WriteAsync("mycontainer", "file.txt", ToStream("data"), "text/plain");
+        await store.WriteAsync("acct", "mycontainer", "file.txt", ToStream("data"), "text/plain");
 
-        await store.DeleteAsync("mycontainer", "file.txt");
+        await store.DeleteAsync("acct", "mycontainer", "file.txt");
 
-        Assert.False(await store.ExistsAsync("mycontainer", "file.txt"));
+        Assert.False(await store.ExistsAsync("acct", "mycontainer", "file.txt"));
     }
 
     [Fact]
@@ -102,7 +132,7 @@ public class TempFileBlobStoreTests : IDisposable
     {
         var store = NewStore();
 
-        var exception = await Record.ExceptionAsync(() => store.DeleteAsync("mycontainer", "missing.txt"));
+        var exception = await Record.ExceptionAsync(() => store.DeleteAsync("acct", "mycontainer", "missing.txt"));
 
         Assert.Null(exception);
     }
@@ -111,25 +141,25 @@ public class TempFileBlobStoreTests : IDisposable
     public async Task DeleteContainerAsync_RemovesAllBlobsInContainer()
     {
         var store = NewStore();
-        await store.WriteAsync("mycontainer", "a.txt", ToStream("a"), "text/plain");
-        await store.WriteAsync("mycontainer", "folder/b.txt", ToStream("b"), "text/plain");
+        await store.WriteAsync("acct", "mycontainer", "a.txt", ToStream("a"), "text/plain");
+        await store.WriteAsync("acct", "mycontainer", "folder/b.txt", ToStream("b"), "text/plain");
 
-        await store.DeleteContainerAsync("mycontainer");
+        await store.DeleteContainerAsync("acct", "mycontainer");
 
-        Assert.False(await store.ExistsAsync("mycontainer", "a.txt"));
-        Assert.False(await store.ExistsAsync("mycontainer", "folder/b.txt"));
+        Assert.False(await store.ExistsAsync("acct", "mycontainer", "a.txt"));
+        Assert.False(await store.ExistsAsync("acct", "mycontainer", "folder/b.txt"));
     }
 
     [Fact]
     public async Task DeleteContainerAsync_DoesNotAffectOtherContainers()
     {
         var store = NewStore();
-        await store.WriteAsync("keep", "a.txt", ToStream("a"), "text/plain");
-        await store.WriteAsync("remove", "b.txt", ToStream("b"), "text/plain");
+        await store.WriteAsync("acct", "keep", "a.txt", ToStream("a"), "text/plain");
+        await store.WriteAsync("acct", "remove", "b.txt", ToStream("b"), "text/plain");
 
-        await store.DeleteContainerAsync("remove");
+        await store.DeleteContainerAsync("acct", "remove");
 
-        Assert.True(await store.ExistsAsync("keep", "a.txt"));
+        Assert.True(await store.ExistsAsync("acct", "keep", "a.txt"));
     }
 
     [Fact]
@@ -137,7 +167,7 @@ public class TempFileBlobStoreTests : IDisposable
     {
         var store = NewStore();
 
-        var exception = await Record.ExceptionAsync(() => store.DeleteContainerAsync("missing-container"));
+        var exception = await Record.ExceptionAsync(() => store.DeleteContainerAsync("acct", "missing-container"));
 
         Assert.Null(exception);
     }

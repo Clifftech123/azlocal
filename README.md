@@ -1,75 +1,96 @@
-# azlocal
+﻿# azlocal
 
-**Local Azure emulator for .NET — develop and test without a real Azure subscription.**
+Run Azure services locally while you build and test .NET applications.
 
-> **Status: Under active development. Not production-ready.**
+azlocal runs a local server for a small set of Azure APIs. Use it to test blob uploads, work with test secrets, and exercise queue operations without an Azure subscription. Blob Storage, Key Vault, Service Bus queues, and resource groups work with the official Azure SDK clients. HTTP endpoints are also available.
 
----
+The project is under active development. It is built for local development and automated tests, with more Azure services planned.
 
-## The problem
+## Service status
 
-Every time you write .NET code that talks to Azure — Blob Storage, Key Vault, Service Bus — you need a live Azure environment to run and test it. That means a subscription, credentials, internet access, and real cloud costs just to run your tests.
+The goal is to support the services below for local development and testing. Some work today; others are on the roadmap. Support is added and tested one set of operations at a time.
 
-azlocal removes that dependency entirely: it runs a local server that speaks the same HTTP API as Azure, so your code and tests work as if Azure is there.
+### Available now
 
----
+| Service | Tested local operations | Client |
+| --- | --- | --- |
+| Blob Storage | Create and delete containers; upload, download, list, and delete blobs; read blob properties | `Azure.Storage.Blobs` |
+| Key Vault Secrets | Set, get, list, and delete secrets; read secret versions | `Azure.Security.KeyVault.Secrets` |
+| Service Bus queues | Send single messages and batches; peek, receive, complete, abandon, renew locks, and dead-letter messages; read dead-letter queues | `Azure.Messaging.ServiceBus` over local AMQP, or HTTP |
+| Resource management | Create, read, list, and delete resource groups; preserve tags; read the configured subscription | `Azure.ResourceManager`, or HTTP |
+| Managed identity | Acquire a local test token with resource and expiry fields | `Azure.Identity.ManagedIdentityCredential` through the factory |
 
-## Get started
+These services support the operations listed here. They do not implement the full Azure APIs. Managed identity returns test tokens. See [SDK compatibility](docs/SDK_COMPAT.md) for setup and remaining limitations.
 
-### 1. Install the CLI and the client library
+### Planned support
 
-```bash
-dotnet tool install -g azlocal
+These services are not implemented yet. The scope below describes what we intend to build first. Contributions are welcome.
+
+| Service | Status | Initial scope |
+| --- | --- | --- |
+| Queue Storage | Planned | Create and delete queues; send, peek, receive, update, and delete messages; visibility timeouts |
+| Table Storage | Planned | Create and delete tables; insert, read, update, and delete entities; basic queries |
+| App Configuration | Planned | Read and write configuration values; labels and feature flags |
+| Event Grid | Planned | Publish events and deliver them to local HTTP subscribers |
+| Cosmos DB for NoSQL | Planned | Create databases and containers; create, read, update, and delete documents; basic queries |
+| Azure Functions (HTTP triggers) | Planned | Integrate a local Functions runtime with the emulated services |
+
+The suggested build order is Queue Storage, Table Storage, App Configuration, then Event Grid. Cosmos DB and Functions integration need more design work. There are no release dates yet.
+
+## Install and run
+
+You need the .NET 10 SDK.
+
+The CLI runs the emulator. The client library connects your application to it. After the packages are published to NuGet, install them with:
+
+```sh
+dotnet tool install --global azlocal
+```
+
+From your application or test project directory:
+
+```sh
 dotnet add package AzLocal.Client
 ```
 
-### 2. Trust the local HTTPS certificate (one-time)
+**Publication status:** these packages are not available on NuGet yet. Until the first release, use the [source setup](#contributing) below.
 
-The Azure SDKs require HTTPS, so azlocal runs over HTTPS by default using the standard ASP.NET Core dev certificate:
+Once installed, start the emulator:
 
-```bash
+```sh
 azlocal trust-cert
-```
-
-### 3. Start the emulator
-
-```bash
 azlocal start
-
-# AzLocal started on https://127.0.0.1:4566 (pid 12345)
+azlocal wait
 ```
 
-This returns immediately — the host runs as a separate background process. Check it's actually up, or stop it, with:
+The host runs in the background at `https://127.0.0.1:4566`. `wait` checks that it responds before you run your application or tests. Certificate trust may require an extra step on your operating system or CI runner.
 
-```bash
-azlocal wait     # blocks until ready (useful in scripts/CI)
-azlocal status   # prints RUNNING/NOT running
-azlocal stop      # stops the host
-azlocal reset     # stops the host AND wipes all stored state
-```
+Use `127.0.0.1` when configuring Blob Storage clients so the SDK parses the local account paths correctly.
 
-### 4. Use it
+### CLI commands
+
+| Command | Purpose |
+| --- | --- |
+| `start [--port N]` | Start the host; the default port is 4566 |
+| `wait [--port N] [--timeout S]` | Wait for the host to respond; the default timeout is 30 seconds |
+| `status [--port N]` | Check whether the host responds |
+| `stop` | Stop the host started by the CLI |
+| `reset` | Stop the host and delete the default temporary state directory |
+| `trust-cert` | Trust the ASP.NET Core development certificate |
+
+## Connect your application
+
+With `AzLocal.Client` referenced in your application or test project, create a factory for the running emulator:
 
 ```csharp
 using AzLocal.Client;
 
-var factory = new AzlocalClientFactory(); // defaults to https://127.0.0.1:4566
-
-// Instead of connecting to real Azure:
-//   new BlobServiceClient(new Uri("https://myaccount.blob.core.windows.net"), new DefaultAzureCredential());
-// connect to azlocal — the real Azure SDK client, everything else stays the same:
-var blobClient = factory.CreateBlobServiceClient("myaccount");
+var factory = new AzlocalClientFactory();
 ```
 
-Blob Storage and Key Vault work with the real, unmodified Azure SDK — no mocking, no forks. Service Bus and ARM are also emulated, but only through `AzlocalClientFactory`'s own HTTP client, not the official SDKs (see [Services](#services) for why).
+For a custom port, pass the address: `new AzlocalClientFactory("https://127.0.0.1:5001")`.
 
----
-
-## Usage examples
-
-Every example below assumes `var factory = new AzlocalClientFactory();` and that azlocal is running (steps 2–3 above).
-
-### Blob Storage — real `Azure.Storage.Blobs` SDK
+### Blob Storage
 
 ```csharp
 var container = factory.CreateBlobContainerClient("myaccount", "uploads");
@@ -79,141 +100,134 @@ var blob = container.GetBlobClient("hello.txt");
 await blob.UploadAsync(new BinaryData("hello from azlocal"), overwrite: true);
 
 var download = await blob.DownloadContentAsync();
-Console.WriteLine(download.Value.Content.ToString()); // "hello from azlocal"
+Console.WriteLine(download.Value.Content.ToString());
 ```
 
-### Key Vault Secrets — real `Azure.Security.KeyVault.Secrets` SDK
+### Key Vault Secrets
 
 ```csharp
 var secrets = factory.CreateSecretClient("myvault");
 
-await secrets.SetSecretAsync("my-api-key", "super-secret-value");
-var secret = await secrets.GetSecretAsync("my-api-key");
-Console.WriteLine(secret.Value.Value); // "super-secret-value"
+await secrets.SetSecretAsync("api-key", "test-value");
+var secret = await secrets.GetSecretAsync("api-key");
+Console.WriteLine(secret.Value.Value);
 ```
 
-### Service Bus (Queues) — HTTP client, not the official SDK
+### Service Bus queues
+
+The AMQP listener runs on `127.0.0.1:5672`. It uses the HTTP namespace `local`, so SDK clients and `CreateServiceBusHttpClient("local")` share the same queues. Queues are created when first used. Message locks last 30 seconds and can be renewed.
 
 ```csharp
-var sb = factory.CreateServiceBusHttpClient("mynamespace");
+using Azure.Messaging.ServiceBus;
 
-await sb.PostAsync("myqueue/messages", new StringContent("hello"));       // send
-var received = await sb.PostAsync("myqueue/messages/head", null);        // peek-lock receive
-var body = await received.Content.ReadAsStringAsync();                   // "hello"
+await using var bus = factory.CreateServiceBusClient();
+await using var sender = bus.CreateSender("myqueue");
+await sender.SendMessageAsync(new ServiceBusMessage("hello"));
 
-// Complete it using the lock token from the BrokerProperties response header:
-var lockToken = /* parse "LockToken" out of received.Headers.GetValues("BrokerProperties") */;
-await sb.DeleteAsync($"myqueue/messages/{lockToken}");
-```
-
-### ARM (Resource Groups & Subscriptions) — HTTP client, not the official SDK
-
-```csharp
-var arm = factory.CreateHttpClient();
-
-// List the (single, fake) configured subscription:
-var subs = await arm.GetAsync("/arm/subscriptions");
-var subId = /* parse "subscriptionId" out of the JSON "value" array */;
-
-var body = new StringContent("{\"location\":\"eastus\"}", Encoding.UTF8, "application/json");
-await arm.PutAsync($"/arm/subscriptions/{subId}/resourcegroups/my-rg", body);
-```
-
----
-
-## Using azlocal in your own tests
-
-**Option A — separately running process.** Start azlocal (steps 2–3 above, e.g. in a CI step or manually), then use `AzlocalFixture` as an xUnit class fixture:
-
-```csharp
-public class MyTests : IClassFixture<AzlocalFixture>
+await using var receiver = bus.CreateReceiver("myqueue");
+var message = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(2));
+if (message is not null)
 {
-    private readonly AzlocalFixture _fixture;
-    public MyTests(AzlocalFixture fixture) => _fixture = fixture;
-
-    [Fact]
-    public async Task UploadsABlob()
-    {
-        var container = _fixture.Clients.CreateBlobContainerClient("acct", "container");
-        // ...
-    }
+    Console.WriteLine(message.Body.ToString());
+    await receiver.CompleteMessageAsync(message);
 }
 ```
 
-**Option B — in-process, no separate process to start/stop.** Reference `AzLocal.Host` directly and boot it with `WebApplicationFactory<Program>` (this is exactly what azlocal's own integration tests do — see `tests/AzLocal.IntegrationTests/Fixtures/EmulatorFixture.cs` for the full pattern):
+This supports local queue operations. Topics, sessions, transactions, scheduled delivery, message deferral, and administration APIs are not implemented.
+
+### Resource groups
 
 ```csharp
-public sealed class EmulatorFixture : WebApplicationFactory<Program>
-{
-    public AzlocalClientFactory Clients { get; }
-    public EmulatorFixture() => Clients = new AzlocalClientFactory("https://127.0.0.1", Server.CreateHandler());
-}
+using Azure;
+using Azure.Core;
+using Azure.ResourceManager.Resources;
+
+var arm = factory.CreateArmClient();
+var subscription = await arm.GetDefaultSubscriptionAsync();
+var groups = subscription.GetResourceGroups();
+
+var created = await groups.CreateOrUpdateAsync(
+    WaitUntil.Completed, "my-rg", new ResourceGroupData(new AzureLocation("eastus")));
+Console.WriteLine(created.Value.Data.Name);
+await created.Value.DeleteAsync(WaitUntil.Completed);
 ```
 
-This needs a package reference to `AzLocal.Host` and the `Microsoft.AspNetCore.Mvc.Testing` package. It's faster (no process startup) and fully isolated per test run.
+### Managed identity
 
----
+Use the factory to point the official managed identity credential at the local endpoint:
 
-## Who this is for
+```csharp
+var credential = factory.CreateManagedIdentityCredential();
+var arm = factory.CreateArmClient(credential: credential);
+var subscription = await arm.GetDefaultSubscriptionAsync();
+```
 
-- **.NET developers** who want to run and test Azure-dependent code on their laptop without a live Azure environment
-- **CI/CD pipelines** that need Azure services available during automated tests without cloud costs or credential management
+The endpoint validates token requests and returns test tokens with a one-hour expiry. It does not contact Microsoft Entra ID. IMDSv2 key-bound tokens are not supported.
 
----
+## Use in tests
 
-## Services
+Start the emulator before your test run and create clients with `AzlocalClientFactory`. Give each test unique resource names to keep test data separate.
 
-| Phase | Service | Status | Azure SDK compatible? |
-|---|---|---|---|
-| 1 | Blob Storage | Implemented | Yes — `Azure.Storage.Blobs`, real SDK, no code changes |
-| 1 | Key Vault Secrets | Implemented | Yes — `Azure.Security.KeyVault.Secrets`, real SDK, no code changes |
-| 1 | Resource Groups & Subscriptions (ARM) | Implemented | No — HTTP only, via `AzlocalClientFactory.CreateHttpClient()`, not `Azure.ResourceManager` |
-| 1 | Managed Identity (IMDS stub) | Implemented | Yes — any `TokenCredential`-based SDK call acquires a token transparently |
-| 2 | Service Bus (Queues) | Implemented | No — HTTP only, via `AzlocalClientFactory.CreateServiceBusHttpClient()`, not `Azure.Messaging.ServiceBus` (that SDK speaks AMQP over TCP, which azlocal doesn't implement) |
-| 2 | Queue Storage | Planned | — |
-| 2 | Table Storage | Planned | — |
-| 2 | App Configuration | Planned | — |
-| 3 | Cosmos DB (SQL API) | Planned | — |
-| 3 | Event Grid | Planned | — |
-| 3 | Azure Functions (HTTP trigger) | Planned | — |
+For tests that run the host inside the test process, use `WebApplicationFactory<Program>` with a reference to `AzLocal.Host` and `Microsoft.AspNetCore.Mvc.Testing`. Pass `Server.CreateHandler()` to the client factory and configure a separate blob directory for each fixture. The repository's [EmulatorFixture](tests/AzLocal.IntegrationTests/Fixtures/EmulatorFixture.cs) shows the setup.
 
-See [docs/SDK_COMPAT.md](docs/SDK_COMPAT.md) for the details behind each "No", and what it would take to close the gap.
+## State and configuration
 
----
+The default state store is in memory. Resource metadata, secrets, and messages are lost when the host stops. Blob contents are stored on disk in the system temporary directory under `azlocal/blobs`.
 
-## CLI reference
+Set `AzLocal:StateMode` to `JsonSnapshot` or `Sqlite` to keep state between runs. You can also configure the state and blob directories. Run one host per state directory.
 
-| Command | What it does |
-|---|---|
-| `start [--port N]` | Starts the host as a background process (default port 4566) |
-| `stop` | Stops the running host |
-| `reset` | Stops the host and deletes all stored state (`%TEMP%/azlocal`) |
-| `wait [--port N] [--timeout S]` | Blocks until the host responds, or times out |
-| `status [--port N]` | Prints whether a host is running on the given port |
-| `trust-cert` | Trusts the local HTTPS dev certificate (`dotnet dev-certs https --trust`) |
+The blob storage format changed to separate accounts and preserve case-sensitive names. Blob data created with the previous format needs to be recreated; there is no automatic migration. `azlocal reset` clears the default state directory, but leaves custom storage directories alone.
 
----
+See [Configuration](docs/CONFIGURATION.md) for storage details.
 
-## Requirements
+azlocal accepts fake credentials and only allows local connections. Use test data and test secrets. Keep the emulator on your machine or inside your test environment.
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+## Work still to do
 
----
+Contributions are welcome for the planned services in the [status table](#service-status). Existing services also need more coverage:
 
-## Contributing / working on azlocal itself
+- Service Bus: add topics, sessions, transactions, scheduled delivery, message deferral, and administration APIs.
+- Resource management: extend SDK support beyond subscriptions and resource groups.
+- Blob Storage and Key Vault: extend API coverage and add SDK compatibility tests for additional operations.
+- Storage: add a migration for blob data created with the previous format.
+- CLI: check installation, certificate setup, startup, and shutdown on Windows, Linux, and macOS.
 
-Building azlocal from source (rather than installing it as a package) is only needed if you're working on azlocal itself:
+There are no release dates for these items yet.
 
-```bash
-git clone <repo-url>
+## Contributing
+
+Clone the repository if you want to work on azlocal or try it before the NuGet release:
+
+```sh
+git clone https://github.com/Clifftech123/azlocal.git
 cd azlocal
 dotnet build
 dotnet test
 ```
 
-See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for the project layout and more detail.
+To run the host directly from the checkout:
 
----
+```sh
+dotnet dev-certs https --trust
+dotnet run --project src/AzLocal.Host -- --urls https://127.0.0.1:4566
+```
+
+Keep that process running while you use your application. To reference the client library before it is published, run this from your application or test project, replacing the path with your checkout location:
+
+```sh
+dotnet add reference /path/to/azlocal/src/AzLocal.Client/AzLocal.Client.csproj
+```
+
+To build and install the CLI locally, run these commands from the repository directory:
+
+```sh
+dotnet pack src/AzLocal.Cli -c Release -o artifacts/packages
+dotnet tool install --global azlocal --add-source artifacts/packages
+```
+
+The tool package includes the host and can run from any directory.
+
+See [Contributing](docs/CONTRIBUTING.md) for the project layout and [Services](docs/SERVICES.md) for service documentation.
 
 ## License
 

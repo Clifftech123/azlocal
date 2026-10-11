@@ -33,6 +33,14 @@ public class AuthStubMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
+        // The emulator intentionally bypasses authentication and must remain local.
+        if (context.Connection.RemoteIpAddress is { } address &&
+            !System.Net.IPAddress.IsLoopback(address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+
         // Skip real token validation — stamp every request as authenticated locally.
         context.User = _fakeUser;
         await _next(context);

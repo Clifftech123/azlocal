@@ -5,10 +5,7 @@ using System.Text.Json;
 
 namespace AzLocal.IntegrationTests;
 
-// Note: like ServiceBus, ARM here is exercised via AzlocalClientFactory.CreateHttpClient's raw
-// HTTP surface rather than the official Azure.ResourceManager SDK — that SDK is a much larger
-// surface (long-running-operation polling, resource identifier composition, etc.) that AzLocal
-// doesn't attempt to support today.
+// These tests exercise the HTTP ARM routes. Official SDK coverage is in AzLocal.CompatTests.
 public class ArmTests : IClassFixture<EmulatorFixture>
 {
     private readonly EmulatorFixture _fixture;

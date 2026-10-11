@@ -108,10 +108,25 @@ public sealed class AzlocalClientFactory
     // Service Bus
     // -------------------------------------------------------------------------
 
+    /// <summary>Creates an official Service Bus client for the local AMQP listener.</summary>
+    /// <remarks>AMQP queues share the HTTP namespace "local". The listener is loopback-only.</remarks>
+    public Azure.Messaging.ServiceBus.ServiceBusClient CreateServiceBusClient(int amqpPort = 5672)
+    {
+        if (amqpPort is < 1 or > 65535) throw new ArgumentOutOfRangeException(nameof(amqpPort));
+        var address = new Uri(_baseUrl);
+        if (!System.Net.IPAddress.TryParse(address.Host, out var ip) || !System.Net.IPAddress.IsLoopback(ip))
+            throw new InvalidOperationException("The AMQP client requires a loopback IP address.");
+        return new Azure.Messaging.ServiceBus.ServiceBusClient(
+            $"Endpoint=sb://{address.Host}:{amqpPort};SharedAccessKeyName=local;SharedAccessKey=local;UseDevelopmentEmulator=true;",
+            new Azure.Messaging.ServiceBus.ServiceBusClientOptions
+            {
+                RetryOptions = new Azure.Messaging.ServiceBus.ServiceBusRetryOptions { MaxRetries = 0, TryTimeout = TimeSpan.FromSeconds(10) }
+            });
+    }
+
     /// <summary>
     /// Returns a pre-configured <see cref="HttpClient"/> for the Service Bus emulator.
-    /// The Azure Service Bus SDK uses AMQP (not HTTP), so direct SDK integration is not
-    /// supported. Use this client to call the emulator's HTTP queue endpoints directly.
+    /// Use this client for HTTP queue endpoints, or CreateServiceBusClient for AMQP.
     /// <code>
     /// var sb = factory.CreateServiceBusHttpClient("mynamespace");
     /// await sb.PostAsync("myqueue/messages", new StringContent("hello"));
@@ -127,6 +142,18 @@ public sealed class AzlocalClientFactory
     // -------------------------------------------------------------------------
     // Raw HTTP (ARM or any other emulated service)
     // -------------------------------------------------------------------------
+
+    /// <summary>Creates an official ARM client for local resource groups and subscriptions.</summary>
+    public Azure.ResourceManager.ArmClient CreateArmClient(string? subscriptionId = null, Azure.Core.TokenCredential? credential = null)
+    {
+        var options = new Azure.ResourceManager.ArmClientOptions
+        {
+            Environment = new Azure.ResourceManager.ArmEnvironment(new Uri(_baseUrl), "https://management.azure.com/"),
+            Retry = { MaxRetries = 0 }
+        };
+        if (_handler is not null) options.Transport = new HttpClientTransport(_handler);
+        return new Azure.ResourceManager.ArmClient(credential ?? Credential, subscriptionId, options);
+    }
 
     /// <summary>
     /// Returns a general-purpose <see cref="HttpClient"/> with the emulator base address
@@ -145,6 +172,30 @@ public sealed class AzlocalClientFactory
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
+
+    /// <summary>Creates an official managed identity credential pointed at the local IMDS endpoint.</summary>
+    public Azure.Identity.ManagedIdentityCredential CreateManagedIdentityCredential()
+    {
+        var uri = new Uri(_baseUrl);
+        if (!(uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+            System.Net.IPAddress.TryParse(uri.Host, out var address) && System.Net.IPAddress.IsLoopback(address)))
+            throw new InvalidOperationException("Local managed identity requires a loopback endpoint.");
+        var options = new Azure.Identity.ManagedIdentityCredentialOptions { Retry = { MaxRetries = 0 } };
+        options.AddPolicy(new LocalIdentityEndpointPolicy(uri), Azure.Core.HttpPipelinePosition.PerCall);
+        if (_handler is not null) options.Transport = new HttpClientTransport(_handler);
+        return new Azure.Identity.ManagedIdentityCredential(options);
+    }
+
+    private sealed class LocalIdentityEndpointPolicy(Uri endpoint) : HttpPipelineSynchronousPolicy
+    {
+        public override void OnSendingRequest(Azure.Core.HttpMessage message)
+        {
+            var path = message.Request.Uri.ToUri().PathAndQuery;
+            if (!path.StartsWith("/metadata/", StringComparison.Ordinal))
+                throw new InvalidOperationException("Only IMDS requests are supported by the local identity credential.");
+            message.Request.Uri.Reset(new Uri(endpoint, path));
+        }
+    }
 
     private BlobClientOptions BuildBlobOptions()
     {

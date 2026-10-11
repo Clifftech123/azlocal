@@ -27,6 +27,7 @@ public class SubscriptionHandler : IServiceHandler
 
         _fakeSubscription = new
         {
+            id = $"/subscriptions/{_subscriptionId}",
             subscriptionId = _subscriptionId,
             displayName    = config["AzLocal:SubscriptionDisplayName"] ?? "AzLocal Dev Subscription",
             state          = "Enabled",
@@ -39,6 +40,8 @@ public class SubscriptionHandler : IServiceHandler
         // Cast to Delegate so the framework treats this as a route handler and writes the
         // IResult to the response — without the cast, the HttpContext-only signature matches
         // RequestDelegate and the return value is silently discarded.
+        app.MapGet("/subscriptions", (Delegate)ListSubscriptionsAsync);
+        app.MapGet("/subscriptions/{subscriptionId}", GetSubscriptionAsync);
         app.MapGet(ArmRoutes.Subscriptions, (Delegate)ListSubscriptionsAsync);
         app.MapGet(ArmRoutes.Subscription,  GetSubscriptionAsync);
     }

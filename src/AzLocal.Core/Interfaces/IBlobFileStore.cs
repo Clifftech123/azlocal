@@ -9,10 +9,10 @@ namespace AzLocal.Core.Interfaces;
 ///   content type, ETag). This interface holds the actual bytes.
 ///
 /// The only implementation is TempFileBlobStore, which writes files to disk under:
-///   %TEMP%/azlocal/blobs/{containerName}/{blobName}
+///   %TEMP%/azlocal/blobs/{encodedAccount}/{encodedContainer}/{encodedBlob}
 ///
 /// blobName can contain forward slashes (e.g. "folder/subfolder/file.txt") —
-/// TempFileBlobStore creates the necessary subdirectories automatically.
+/// Names are encoded and never interpreted as filesystem paths.
 /// </summary>
 public interface IBlobFileStore
 {
@@ -21,29 +21,29 @@ public interface IBlobFileStore
     /// Creates any intermediate directories if they do not exist.
     /// Overwrites the file if it already exists.
     /// </summary>
-    Task WriteAsync(string containerName, string blobName, Stream content, string contentType);
+    Task WriteAsync(string account, string containerName, string blobName, Stream content, string contentType);
 
     /// <summary>
     /// Opens the blob as a readable stream. The caller is responsible for disposing the stream.
     /// Throws <see cref="FileNotFoundException"/> if the blob does not exist.
     /// </summary>
-    Task<Stream> ReadAsync(string containerName, string blobName);
+    Task<Stream> ReadAsync(string account, string containerName, string blobName);
 
     /// <summary>
     /// Deletes a single blob file.
     /// Does nothing if the blob does not exist — never throws.
     /// </summary>
-    Task DeleteAsync(string containerName, string blobName);
+    Task DeleteAsync(string account, string containerName, string blobName);
 
     /// <summary>
     /// Deletes the entire container directory and all blob files inside it.
     /// Does nothing if the container does not exist — never throws.
     /// Called when a container is deleted via the Blob Storage API.
     /// </summary>
-    Task DeleteContainerAsync(string containerName);
+    Task DeleteContainerAsync(string account, string containerName);
 
     /// <summary>
     /// Returns <c>true</c> if the blob file exists on disk, <c>false</c> otherwise.
     /// </summary>
-    Task<bool> ExistsAsync(string containerName, string blobName);
+    Task<bool> ExistsAsync(string account, string containerName, string blobName);
 }

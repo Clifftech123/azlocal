@@ -25,14 +25,12 @@ public class StartCommandTests
     }
 
     [Fact]
-    public void BuildHostProcessInfo_WithNoPublishedHostExe_FallsBackToDotnetRun()
+    public void BuildHostProcessInfo_LaunchesPackagedCliAsHost()
     {
-        // The test binary's own output directory never contains AzLocal.Host.exe (AzLocal.UnitTests
-        // has no dependency on AzLocal.Host), so this deterministically exercises the dev fallback.
         var psi = StartCommand.BuildHostProcessInfo(4566);
 
         Assert.Equal("dotnet", psi.FileName);
-        Assert.Equal("run --project src/AzLocal.Host --urls https://127.0.0.1:4566", psi.Arguments);
+        Assert.Contains("AzLocal.Cli.dll\" --internal-host --urls https://127.0.0.1:4566", psi.Arguments);
     }
 
     [Fact]

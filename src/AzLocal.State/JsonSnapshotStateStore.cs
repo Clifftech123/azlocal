@@ -21,7 +21,7 @@ public class JsonSnapshotStateStore : IStateStore
 
     public JsonSnapshotStateStore(IConfiguration config)
     {
-        var dir = config["AzLocal:SnapshotPath"]
+        var dir = (string.IsNullOrWhiteSpace(config["AzLocal:SnapshotPath"]) ? null : config["AzLocal:SnapshotPath"])
             ?? Path.Combine(Path.GetTempPath(), "azlocal");
         Directory.CreateDirectory(dir);
         _filePath = Path.Combine(dir, "state.json");
@@ -82,8 +82,21 @@ public class JsonSnapshotStateStore : IStateStore
         await _lock.WaitAsync();
         try
         {
-            await File.WriteAllTextAsync(_filePath,
-                JsonSerializer.Serialize(new Dictionary<string, string>(_store)));
+            var temporaryPath = _filePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                await using (var file = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    await JsonSerializer.SerializeAsync(file, new Dictionary<string, string>(_store));
+                    await file.FlushAsync();
+                    file.Flush(flushToDisk: true);
+                }
+                File.Move(temporaryPath, _filePath, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+            }
         }
         finally { _lock.Release(); }
     }

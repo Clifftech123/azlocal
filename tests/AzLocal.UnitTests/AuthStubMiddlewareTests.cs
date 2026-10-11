@@ -7,6 +7,22 @@ namespace AzLocal.UnitTests;
 
 public class AuthStubMiddlewareTests
 {
+    [Theory]
+    [InlineData("192.0.2.1", false)]
+    [InlineData("127.0.0.1", true)]
+    [InlineData("::1", true)]
+    [InlineData("::ffff:127.0.0.1", true)]
+    public async Task OnlyLoopbackClientsReachTheStub(string ip, bool allowed)
+    {
+        var called = false;
+        var middleware = new AuthStubMiddleware(_ => { called = true; return Task.CompletedTask; }, new InMemoryConfig());
+        var context = new DefaultHttpContext();
+        context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(ip);
+        await middleware.InvokeAsync(context);
+        Assert.Equal(allowed, called);
+        if (!allowed) Assert.Equal(403, context.Response.StatusCode);
+    }
+
     [Fact]
     public async Task InvokeAsync_StampsAuthenticatedUser_AndCallsNext()
     {
