@@ -14,7 +14,8 @@
     <PackageProjectUrl>https://github.com/Clifftech123/azlocal</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Clifftech123/azlocal</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <PackageTags>azure;emulator;local-development;testing;dotnet</PackageTags>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
