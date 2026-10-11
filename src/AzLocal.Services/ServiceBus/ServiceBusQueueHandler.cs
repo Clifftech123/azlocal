@@ -9,13 +9,15 @@ namespace AzLocal.Services.ServiceBus;
 
 public class ServiceBusQueueHandler : IServiceHandler
 {
+    private readonly SemaphoreSlim _gate;
     private readonly IStateStore _state;
     private readonly ILogger<ServiceBusQueueHandler> _logger;
 
     public string ServiceName => "ServiceBus";
 
-    public ServiceBusQueueHandler(IStateStore state, ILogger<ServiceBusQueueHandler> logger)
+    public ServiceBusQueueHandler(IStateStore state, ILogger<ServiceBusQueueHandler> logger, ServiceBusCoordinator coordinator)
     {
+        _gate = coordinator.Gate;
         _state = state;
         _logger = logger;
     }
@@ -30,17 +32,63 @@ public class ServiceBusQueueHandler : IServiceHandler
         app.MapPost(ServiceBusRoutes.DeadLetter, DeadLetterMessageAsync);
     }
 
+    private async Task<IResult> SendMessageAsync(string @namespace, string queue, HttpContext ctx)
+    {
+        await _gate.WaitAsync(ctx.RequestAborted);
+        try { return await SendMessageAsyncCore(@namespace, queue, ctx); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task<IResult> PeekMessagesAsync(string @namespace, string queue, HttpContext ctx)
+    {
+        await _gate.WaitAsync(ctx.RequestAborted);
+        try { return await PeekMessagesAsyncCore(@namespace, queue, ctx); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task<IResult> ReceiveMessageAsync(string @namespace, string queue, HttpContext ctx)
+    {
+        await _gate.WaitAsync(ctx.RequestAborted);
+        try { return await ReceiveMessageAsyncCore(@namespace, queue, ctx); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task<IResult> ReceiveAndDeleteAsync(string @namespace, string queue, HttpContext ctx)
+    {
+        await _gate.WaitAsync(ctx.RequestAborted);
+        try { return await ReceiveAndDeleteAsyncCore(@namespace, queue, ctx); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task<IResult> CompleteMessageAsync(string @namespace, string queue, string lockToken, HttpContext ctx)
+    {
+        await _gate.WaitAsync(ctx.RequestAborted);
+        try { return await CompleteMessageAsyncCore(@namespace, queue, lockToken, ctx); }
+        finally { _gate.Release(); }
+    }
+
+    private async Task<IResult> DeadLetterMessageAsync(string @namespace, string queue, string lockToken, HttpContext ctx)
+    {
+        await _gate.WaitAsync(ctx.RequestAborted);
+        try { return await DeadLetterMessageAsyncCore(@namespace, queue, lockToken, ctx); }
+        finally { _gate.Release(); }
+    }
+
     #region Route handlers
 
     /// <summary>Enqueues a new message. Body is the raw message payload.</summary>
-    private async Task<IResult> SendMessageAsync(string @namespace, string queue, HttpContext ctx)
+    private async Task<IResult> SendMessageAsyncCore(string @namespace, string queue, HttpContext ctx)
     {
         using var reader = new StreamReader(ctx.Request.Body);
         var body = await reader.ReadToEndAsync();
 
+        var sequenceKey = $"servicebus/{@namespace}/{queue}/sequence".ToLowerInvariant();
+        var sequence = await _state.GetAsync<long>(sequenceKey) + 1;
+        await _state.SetAsync(sequenceKey, sequence);
         var message = new ServiceBusMessage
         {
             MessageId = Guid.NewGuid().ToString(),
+            SequenceNumber = sequence,
             Body = body,
             EnqueuedAt = DateTimeOffset.UtcNow
         };
@@ -58,7 +106,7 @@ public class ServiceBusQueueHandler : IServiceHandler
     }
 
     /// <summary>Returns up to 32 messages without removing them from the queue.</summary>
-    private async Task<IResult> PeekMessagesAsync(string @namespace, string queue, HttpContext ctx)
+    private async Task<IResult> PeekMessagesAsyncCore(string @namespace, string queue, HttpContext ctx)
     {
         var messages = await _state.ListAsync<ServiceBusMessage>(ActivePrefix(@namespace, queue));
         var page = messages.OrderBy(m => m.EnqueuedAt).Take(32).ToList();
@@ -73,7 +121,7 @@ public class ServiceBusQueueHandler : IServiceHandler
     /// the message using the returned <c>LockToken</c> before the lock expires.
     /// Returns 204 when the queue is empty.
     /// </summary>
-    private async Task<IResult> ReceiveMessageAsync(string @namespace, string queue, HttpContext ctx)
+    private async Task<IResult> ReceiveMessageAsyncCore(string @namespace, string queue, HttpContext ctx)
     {
         var message = await NextUnlockedMessageAsync(@namespace, queue);
         if (message is null)
@@ -83,10 +131,10 @@ public class ServiceBusQueueHandler : IServiceHandler
         }
 
         message.DeliveryCount++;
-        await _state.SetAsync(ActiveKey(@namespace, queue, message.MessageId), message);
-
         var lockToken = Guid.NewGuid().ToString();
-        await _state.SetAsync(LockKey(@namespace, queue, lockToken), message.MessageId);
+        message.LockToken = lockToken;
+        message.LockedUntil = DateTimeOffset.UtcNow.AddSeconds(30);
+        await _state.SetAsync(ActiveKey(@namespace, queue, message.MessageId), message);
 
         _logger.LogInformation("Message received (peek-lock) ns={Namespace} queue={Queue} messageId={MessageId} lock={Lock}",
             @namespace, queue, message.MessageId, lockToken);
@@ -97,6 +145,7 @@ public class ServiceBusQueueHandler : IServiceHandler
             MessageId = message.MessageId,
             LockToken = lockToken,
             DeliveryCount = message.DeliveryCount,
+            LockedUntilUtc = message.LockedUntil,
             EnqueuedTimeUtc = message.EnqueuedAt
         });
         // The message body is the raw payload the caller sent — Results.Ok(string) would
@@ -108,7 +157,7 @@ public class ServiceBusQueueHandler : IServiceHandler
     /// Receives and immediately deletes the oldest message (no lock required to complete).
     /// Returns 204 when the queue is empty.
     /// </summary>
-    private async Task<IResult> ReceiveAndDeleteAsync(string @namespace, string queue, HttpContext ctx)
+    private async Task<IResult> ReceiveAndDeleteAsyncCore(string @namespace, string queue, HttpContext ctx)
     {
         var message = await NextUnlockedMessageAsync(@namespace, queue);
         if (message is null) return Results.NoContent();
@@ -129,9 +178,11 @@ public class ServiceBusQueueHandler : IServiceHandler
     }
 
     /// <summary>Completes a previously peek-locked message, removing it from the queue.</summary>
-    private async Task<IResult> CompleteMessageAsync(string @namespace, string queue, string lockToken, HttpContext ctx)
+    private async Task<IResult> CompleteMessageAsyncCore(string @namespace, string queue, string lockToken, HttpContext ctx)
     {
-        var messageId = await _state.GetAsync<string>(LockKey(@namespace, queue, lockToken));
+        var locked = (await _state.ListAsync<ServiceBusMessage>(ActivePrefix(@namespace, queue)))
+            .FirstOrDefault(m => m.LockToken == lockToken && m.LockedUntil > DateTimeOffset.UtcNow);
+        var messageId = locked?.MessageId;
         if (messageId is null)
         {
             _logger.LogWarning("CompleteMessage lock not found ns={Namespace} queue={Queue} lock={Lock}", @namespace, queue, lockToken);
@@ -139,7 +190,6 @@ public class ServiceBusQueueHandler : IServiceHandler
         }
 
         await _state.DeleteAsync(ActiveKey(@namespace, queue, messageId));
-        await _state.DeleteAsync(LockKey(@namespace, queue, lockToken));
         _logger.LogInformation("Message completed ns={Namespace} queue={Queue} messageId={MessageId}", @namespace, queue, messageId);
 
         SetRequestId(ctx);
@@ -147,9 +197,11 @@ public class ServiceBusQueueHandler : IServiceHandler
     }
 
     /// <summary>Moves a peek-locked message to the dead-letter queue.</summary>
-    private async Task<IResult> DeadLetterMessageAsync(string @namespace, string queue, string lockToken, HttpContext ctx)
+    private async Task<IResult> DeadLetterMessageAsyncCore(string @namespace, string queue, string lockToken, HttpContext ctx)
     {
-        var messageId = await _state.GetAsync<string>(LockKey(@namespace, queue, lockToken));
+        var locked = (await _state.ListAsync<ServiceBusMessage>(ActivePrefix(@namespace, queue)))
+            .FirstOrDefault(m => m.LockToken == lockToken && m.LockedUntil > DateTimeOffset.UtcNow);
+        var messageId = locked?.MessageId;
         if (messageId is null)
         {
             _logger.LogWarning("DeadLetter lock not found ns={Namespace} queue={Queue} lock={Lock}", @namespace, queue, lockToken);
@@ -163,8 +215,9 @@ public class ServiceBusQueueHandler : IServiceHandler
             try
             {
                 using var doc = await JsonDocument.ParseAsync(ctx.Request.Body);
-                doc.RootElement.TryGetProperty("deadLetterReason", out var prop);
-                reason = prop.GetString();
+                if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                    doc.RootElement.TryGetProperty("deadLetterReason", out var prop) && prop.ValueKind == JsonValueKind.String)
+                    reason = prop.GetString();
             }
             catch (JsonException ex)
             {
@@ -176,7 +229,6 @@ public class ServiceBusQueueHandler : IServiceHandler
             await _state.DeleteAsync(ActiveKey(@namespace, queue, messageId));
         }
 
-        await _state.DeleteAsync(LockKey(@namespace, queue, lockToken));
         _logger.LogInformation("Message dead-lettered ns={Namespace} queue={Queue} messageId={MessageId}", @namespace, queue, messageId);
 
         SetRequestId(ctx);
@@ -192,10 +244,9 @@ public class ServiceBusQueueHandler : IServiceHandler
     // lock expires — otherwise two consumers could process the same message concurrently.
     private async Task<ServiceBusMessage?> NextUnlockedMessageAsync(string ns, string queue)
     {
-        var lockedMessageIds = (await _state.ListAsync<string>(LockPrefix(ns, queue))).ToHashSet();
         var messages = await _state.ListAsync<ServiceBusMessage>(ActivePrefix(ns, queue));
         return messages
-            .Where(m => !lockedMessageIds.Contains(m.MessageId))
+            .Where(m => m.LockedUntil is null || m.LockedUntil <= DateTimeOffset.UtcNow)
             .OrderBy(m => m.EnqueuedAt)
             .FirstOrDefault();
     }
@@ -205,12 +256,6 @@ public class ServiceBusQueueHandler : IServiceHandler
 
     private static string ActiveKey(string ns, string queue, string messageId) =>
         $"servicebus/{ns}/{queue}/active/{messageId}".ToLowerInvariant();
-
-    private static string LockPrefix(string ns, string queue) =>
-        $"servicebus/{ns}/{queue}/locks/".ToLowerInvariant();
-
-    private static string LockKey(string ns, string queue, string lockToken) =>
-        $"servicebus/{ns}/{queue}/locks/{lockToken}".ToLowerInvariant();
 
     private static string DeadLetterKey(string ns, string queue, string messageId) =>
         $"servicebus/{ns}/{queue}/deadletter/{messageId}".ToLowerInvariant();

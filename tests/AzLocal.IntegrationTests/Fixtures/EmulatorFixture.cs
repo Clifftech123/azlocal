@@ -33,6 +33,7 @@ public sealed class EmulatorFixture : WebApplicationFactory<Program>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
+                ["AzLocal:AmqpEnabled"] = "false",
                 ["AzLocal:BlobStorePath"] = _blobStorePath
             });
         });

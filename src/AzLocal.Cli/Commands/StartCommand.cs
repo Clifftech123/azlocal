@@ -1,7 +1,6 @@
 using AzLocal.Core;
 using System.CommandLine;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 
 namespace AzLocal.Cli.Commands;
 
@@ -62,27 +61,11 @@ public static class StartCommand
 
     internal static ProcessStartInfo BuildHostProcessInfo(int port)
     {
-        // When published, AzLocal.Host lives next to this binary.
-        // Fall back to 'dotnet run' for local development.
-        var hostExe = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? Path.Combine(AppContext.BaseDirectory, "AzLocal.Host.exe")
-            : Path.Combine(AppContext.BaseDirectory, "AzLocal.Host");
-
-        if (File.Exists(hostExe))
-        {
-            return new ProcessStartInfo
-            {
-                FileName = hostExe,
-                Arguments = $"--urls https://127.0.0.1:{port}",
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-        }
-
         return new ProcessStartInfo
         {
             FileName = "dotnet",
-            Arguments = $"run --project src/AzLocal.Host --urls https://127.0.0.1:{port}",
+            Arguments = $"\"{typeof(StartCommand).Assembly.Location}\" --internal-host --urls https://127.0.0.1:{port}",
+            WorkingDirectory = AppContext.BaseDirectory,
             UseShellExecute = false,
             CreateNoWindow = true,
         };

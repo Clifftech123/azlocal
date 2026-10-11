@@ -5,10 +5,7 @@ using System.Text.Json;
 
 namespace AzLocal.IntegrationTests;
 
-// Note: Azure.Messaging.ServiceBus (the real SDK) speaks AMQP over TCP, not HTTP — it cannot
-// talk to this emulator at all. These tests exercise AzlocalClientFactory.CreateServiceBusHttpClient's
-// raw HTTP facade directly, since that's the only way to reach this service today. They validate
-// the handler's own behavior, not real Azure SDK wire compatibility (see ServiceBusRoutes.cs).
+// These tests exercise the HTTP queue endpoints. Official SDK coverage is in AzLocal.CompatTests.
 public class ServiceBusTests : IClassFixture<EmulatorFixture>
 {
     private readonly EmulatorFixture _fixture;
@@ -16,6 +13,45 @@ public class ServiceBusTests : IClassFixture<EmulatorFixture>
     public ServiceBusTests(EmulatorFixture fixture) => _fixture = fixture;
 
     private static string UniqueName(string prefix) => $"{prefix}-{Guid.NewGuid():N}";
+
+    [Fact]
+    public async Task ConcurrentReceiversClaimMessageOnlyOnce()
+    {
+        using var client = NewClient(UniqueName("ns"));
+        var queue = UniqueName("queue");
+        await client.PostAsync($"{queue}/messages", new StringContent("one"));
+        var responses = await Task.WhenAll(Enumerable.Range(0, 20)
+            .Select(_ => client.PostAsync($"{queue}/messages/head", null)));
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
+        Assert.Equal(19, responses.Count(r => r.StatusCode == HttpStatusCode.NoContent));
+        foreach (var response in responses) response.Dispose();
+    }
+
+    [Fact]
+    public async Task ExpiredLockRedeliversAndCannotSettleNewDelivery()
+    {
+        var ns = UniqueName("ns");
+        var queue = UniqueName("queue");
+        using var client = NewClient(ns);
+        await client.PostAsync($"{queue}/messages", new StringContent("one"));
+        var first = await client.PostAsync($"{queue}/messages/head", null);
+        var oldToken = GetLockToken(first);
+        var state = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+            .GetRequiredService<AzLocal.Core.Interfaces.IStateStore>(_fixture.Services);
+        var prefix = $"servicebus/{ns}/{queue}/active/".ToLowerInvariant();
+        var message = Assert.Single(await state.ListAsync<AzLocal.Core.Models.ServiceBusMessage>(prefix));
+        message.LockedUntil = DateTimeOffset.UtcNow.AddSeconds(-1);
+        await state.SetAsync(prefix + message.MessageId, message);
+        var expiredComplete = await client.DeleteAsync($"{queue}/messages/{oldToken}");
+        Assert.Equal(HttpStatusCode.NotFound, expiredComplete.StatusCode);
+        var second = await client.PostAsync($"{queue}/messages/head", null);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        Assert.NotEqual(oldToken, GetLockToken(second));
+        using var properties = JsonDocument.Parse(second.Headers.GetValues("BrokerProperties").Single());
+        Assert.Equal(2, properties.RootElement.GetProperty("DeliveryCount").GetInt32());
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"{queue}/messages/{oldToken}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.DeleteAsync($"{queue}/messages/{GetLockToken(second)}")).StatusCode);
+    }
 
     private HttpClient NewClient(string @namespace) => _fixture.Clients.CreateServiceBusHttpClient(@namespace);
 

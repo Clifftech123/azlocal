@@ -26,6 +26,13 @@ public class ResourceGroupHandler : IServiceHandler
 
     public void MapRoutes(WebApplication app)
     {
+        // Official SDKs use the standard ARM paths; preserve the HTTP facade too.
+        app.MapGet("/subscriptions/{subscriptionId}/resourcegroups", ListResourceGroupsAsync);
+        app.MapGet("/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}", GetResourceGroupAsync);
+        app.MapPut("/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}", CreateOrUpdateResourceGroupAsync);
+        app.MapDelete("/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}", DeleteResourceGroupAsync);
+        app.MapMethods("/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}", ["HEAD"], async (string subscriptionId, string resourceGroupName) =>
+            await _state.ExistsAsync(RgKey(subscriptionId, resourceGroupName)) ? Results.Ok() : Results.NotFound());
         app.MapGet(ArmRoutes.ResourceGroups, ListResourceGroupsAsync);
         app.MapGet(ArmRoutes.ResourceGroup, GetResourceGroupAsync);
         app.MapPut(ArmRoutes.ResourceGroup, CreateOrUpdateResourceGroupAsync);
@@ -61,11 +68,14 @@ public class ResourceGroupHandler : IServiceHandler
         string subscriptionId, string resourceGroupName, HttpContext ctx)
     {
         string location = "local";
+        var tags = new Dictionary<string, string>();
         try
         {
             using var doc = await JsonDocument.ParseAsync(ctx.Request.Body);
             if (doc.RootElement.TryGetProperty("location", out var loc))
                 location = loc.GetString() ?? "local";
+            if (doc.RootElement.TryGetProperty("tags", out var tagValues))
+                tags = JsonSerializer.Deserialize<Dictionary<string, string>>(tagValues.GetRawText()) ?? new();
         }
         catch (JsonException ex)
         {
@@ -79,6 +89,7 @@ public class ResourceGroupHandler : IServiceHandler
         {
             Name = resourceGroupName,
             Location = location,
+            Tags = tags,
             SubscriptionId = subscriptionId,
             ProvisioningState = "Succeeded"
         };
@@ -88,7 +99,7 @@ public class ResourceGroupHandler : IServiceHandler
             isNew ? "created" : "updated", subscriptionId, resourceGroupName, location);
 
         SetRequestId(ctx);
-        return isNew ? Results.Created() : Results.Ok(ResourceGroupResponse(subscriptionId, rg));
+        return isNew ? Results.Json(ResourceGroupResponse(subscriptionId, rg), statusCode: 201) : Results.Ok(ResourceGroupResponse(subscriptionId, rg));
     }
 
     /// <summary>Deletes a resource group. No-ops if it does not exist.</summary>
@@ -98,7 +109,7 @@ public class ResourceGroupHandler : IServiceHandler
         _logger.LogInformation("ResourceGroup deleted sub={Sub} rg={RG}", subscriptionId, resourceGroupName);
 
         SetRequestId(ctx);
-        return Results.Accepted();
+        return ctx.Request.Path.StartsWithSegments("/arm") ? Results.Accepted() : Results.Ok();
     }
 
     #region Private helpers
@@ -113,6 +124,7 @@ public class ResourceGroupHandler : IServiceHandler
     {
         id = $"/subscriptions/{subscriptionId}/resourceGroups/{rg.Name}",
         name = rg.Name,
+        type = "Microsoft.Resources/resourceGroups",
         location = rg.Location,
         tags = rg.Tags,
         properties = new { provisioningState = rg.ProvisioningState }

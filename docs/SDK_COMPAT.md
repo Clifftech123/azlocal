@@ -1,79 +1,57 @@
 # Azure SDK compatibility
 
-azlocal's goal is that real Azure SDK code works against it unchanged. That's true today for
-Blob Storage and Key Vault Secrets. It is **not** true for Service Bus or ARM — this page
-explains why, and what actually works instead.
+azlocal supports the operations listed below with the official .NET SDKs. It does not implement the full Azure service APIs.
 
-## Blob Storage — `Azure.Storage.Blobs` (compatible)
+| SDK | Tested local operations |
+| --- | --- |
+| `Azure.Storage.Blobs` | Container lifecycle; upload, download, list, delete, properties, and existence checks |
+| `Azure.Security.KeyVault.Secrets` | Set, get, list, delete, and read secret versions |
+| `Azure.Messaging.ServiceBus` | Send single messages and batches; peek; receive with peek-lock or receive-and-delete; complete, abandon, renew locks, dead-letter, and read dead-letter queues |
+| `Azure.ResourceManager` | Discover the configured subscription; create or update, get, list, check existence, and delete resource groups; preserve tags |
+| `Azure.Identity` | Acquire a local managed identity token and use it with an ARM client |
 
-Fully compatible. `AzlocalClientFactory.CreateBlobServiceClient`/`CreateBlobContainerClient`/
-`CreateBlobClient` return real `Azure.Storage.Blobs` SDK clients, and every method that
-matters works against them: upload, download, list, delete, properties, `ExistsAsync`,
-`CreateIfNotExistsAsync`, etc.
+## Client setup
 
-Two things had to line up for this to work, both already handled by
-`AzlocalClientFactory`/`EmulatorDefaults` — you don't need to do anything extra, but they
-explain constraints you'll hit if you construct clients yourself instead of using the factory:
+Register SDK clients with `services.AddAzLocal(options => { ... })` and inject them into your application services. The default HTTP endpoint is `https://127.0.0.1:4566`.
 
-- **The emulator must be HTTPS.** The Storage SDK refuses to send a `TokenCredential`-based
-  bearer token over plain HTTP. Run `azlocal trust-cert` once so the local dev certificate is
-  trusted.
-- **Blob routes live at the URL root, and the host must be a literal IP.** The SDK's
-  `BlobUriBuilder` only recognizes "path-style" addressing (`{host}/{account}/{container}/{blob}`,
-  the same scheme Azurite uses) when the host is an IP address — `127.0.0.1`, not `localhost`.
-  Any extra path prefix (azlocal used to have `/azu/...`) breaks the SDK's own parsing of
-  account/container names out of URLs it builds internally (e.g.
-  `containerClient.GetBlobClient(name)`), even though a hand-rolled HTTP request to the same
-  URL works fine. That's why `EmulatorDefaults.BaseUrl` is `https://127.0.0.1:4566`.
+Set `BlobAccountName`, `BlobContainerName`, `KeyVaultName`, and `ServiceBusQueueName` for the clients you need. `BaseUrl` and `AmqpPort` select the HTTP and AMQP endpoints. See the [README example](../README.md#dependency-injection).
 
-## Key Vault Secrets — `Azure.Security.KeyVault.Secrets` (compatible)
+## Blob Storage and Key Vault
 
-Fully compatible. `AzlocalClientFactory.CreateSecretClient` returns a real `SecretClient`.
-Set/get/delete/list secrets and version history all work.
+Trust the development certificate before using the HTTP SDK clients. Token-based Blob Storage clients need HTTPS. Use the literal IP `127.0.0.1` so the Blob SDK recognizes account paths.
 
-This one needed more emulator-side work than Blob, because the Key Vault SDK's auth flow is
-stricter:
+Key Vault uses a local authentication challenge. The registered client disables challenge resource verification for the local endpoint. This setting is intended for the emulator.
 
-- **Challenge-based auth.** Unlike Storage, the Key Vault SDK never attaches a bearer token
-  optimistically — it first sends an anonymous, bodyless probe request expecting a `401` with a
-  `WWW-Authenticate` challenge header, then retries with a token and the real request body.
-  `KeyVaultChallengeMiddleware` answers that challenge for `/kv/*` requests missing an
-  `Authorization` header; without it, the SDK's bodyless probe (not your real request) is what
-  reaches the handler.
-- **Challenge resource verification.** The SDK also checks that the challenge's `resource`
-  domain matches the request host, as an anti-phishing measure — which a local emulator can
-  never satisfy (it's not `*.vault.azure.net`). `AzlocalClientFactory.CreateSecretClient` sets
-  `SecretClientOptions.DisableChallengeResourceVerification = true` to allow this.
-- **Response `id` shape.** The SDK's `KeyVaultIdentifier.Parse` expects secret `id` URLs shaped
-  exactly `{host}/secrets/{name}/{version}` — real Azure encodes the vault name in a subdomain,
-  not a path segment. azlocal's routes are still `/kv/{vault}/secrets/...` (needed so Key Vault,
-  Blob, Service Bus, and ARM can share one port), but the `id` returned in JSON responses omits
-  the `/kv/{vault}` prefix so the SDK can parse it.
+## Service Bus
 
-## Service Bus (Queues) — HTTP only, not `Azure.Messaging.ServiceBus`
+The host starts an AMQP 1.0 TCP listener on `127.0.0.1:5672`. The registered client uses `UseDevelopmentEmulator=true` and fake SAS credentials. The listener is bound to loopback, and connections are plaintext.
 
-**Not compatible with the real SDK, and can't be** without a much larger investment: the real
-`Azure.Messaging.ServiceBus` SDK speaks **AMQP 1.0 over TCP**, not HTTP. azlocal's Service Bus
-emulation is a custom HTTP REST facade (`/sb/{namespace}/{queue}/messages`, peek-lock semantics,
-dead-lettering) — a different wire protocol entirely. The real SDK will never even attempt to
-connect to it.
+AMQP clients use the HTTP namespace `local`. Queues are created on first use. HTTP and AMQP operations use the same state store and coordinator, so they share messages and locks.
 
-Use `AzlocalClientFactory.CreateServiceBusHttpClient(namespace)` instead — it returns a
-pre-authenticated `HttpClient` for calling the emulator's HTTP endpoints directly:
+Locks expire after 30 seconds. Expired tokens cannot settle a message. The local message or batch limit is 256 KiB. Use one host per state directory.
 
-```csharp
-var sb = factory.CreateServiceBusHttpClient("mynamespace");
-await sb.PostAsync("myqueue/messages", new StringContent("hello"));                 // send
-var received = await sb.PostAsync("myqueue/messages/head", content: null);          // peek-lock receive
-```
+Topics, sessions, transactions, scheduled delivery, message deferral, administration APIs, and AMQP over WebSockets are not implemented. Unsupported management operations return an error rather than reporting success.
 
-Making the real SDK work would mean implementing an AMQP 1.0 listener (links, sessions, flow
-control) — a substantially different undertaking from the REST work the rest of azlocal does.
+## Resource management
 
-## ARM (Resource Groups & Subscriptions) — HTTP only, not `Azure.ResourceManager`
+The host serves the standard `/subscriptions/.../resourceGroups/...` routes used by the SDK. The existing `/arm/subscriptions/...` HTTP routes remain available.
 
-ARM's real REST API is plain HTTPS (unlike Service Bus), so `Azure.ResourceManager` could in
-principle work against a compatible emulator — but azlocal doesn't attempt that SDK's full
-surface today (long-running-operation polling, resource identifier composition, etc.). Use
-`AzlocalClientFactory.CreateHttpClient()` and call the ARM REST routes directly
-(`/arm/subscriptions`, `/arm/subscriptions/{id}/resourcegroups/{name}`) instead.
+Resource-group operations finish immediately. SDK calls with `WaitUntil.Completed` are tested for creation and deletion. Other Azure resource types and asynchronous deployment operations are not implemented.
+
+## Managed identity
+
+The registered `ManagedIdentityCredential` routes IMDS requests to the local host. It does not change global environment variables or send requests to Azure's metadata address.
+
+The token endpoint requires GET, `Metadata: true`, an API version, and an absolute resource URI. It returns the configured fake token, the requested resource, and a one-hour expiry. Discovery responses allow the official credential to select the local IMDSv1 flow.
+
+Tokens are for local tests and are not issued or validated by Microsoft Entra ID. IMDSv2 key-bound tokens are not implemented. The default `AzlocalCredential` remains available for clients that only need a static test credential.
+
+## Tests
+
+[AzLocal.CompatTests](../tests/AzLocal.CompatTests) calls the official ARM, Service Bus, and managed identity SDKs. Blob Storage and Key Vault SDK tests are in [AzLocal.IntegrationTests](../tests/AzLocal.IntegrationTests).
+
+## Dependency injection
+
+Call `services.AddAzLocal(options => { ... })` to register SDK clients as singletons. Set `BlobAccountName`, `BlobContainerName`, `KeyVaultName`, and `ServiceBusQueueName` for the clients your application injects. `BaseUrl` and `AmqpPort` select the HTTP and AMQP endpoints. See the [README example](../README.md#dependency-injection).
+
+The container owns the Service Bus client and registered senders and receivers. Use asynchronous disposal for a manually built service provider. Existing client registrations are preserved. Application services can use scoped or transient lifetimes while sharing the singleton SDK clients.

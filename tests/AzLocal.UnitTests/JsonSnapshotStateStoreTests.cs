@@ -20,6 +20,16 @@ public class JsonSnapshotStateStoreTests : IDisposable
             Directory.Delete(_dir, recursive: true);
     }
 
+    [Fact]
+    public async Task ConcurrentWritesProduceReloadableSnapshotWithoutTemporaryFiles()
+    {
+        var store = NewStore();
+        await Task.WhenAll(Enumerable.Range(0, 40).Select(i => store.SetAsync($"key/{i}", new TestValue("value", i))));
+        var reloaded = NewStore();
+        Assert.Equal(40, (await reloaded.ListAsync<TestValue>("key/")).Count);
+        Assert.Single(Directory.GetFiles(_dir));
+    }
+
     private JsonSnapshotStateStore NewStore() =>
         new(new InMemoryConfig("AzLocal:SnapshotPath", _dir));
 

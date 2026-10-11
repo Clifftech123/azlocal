@@ -1,6 +1,12 @@
 using AzLocal.Cli.Commands;
 using System.CommandLine;
 
+if (args.FirstOrDefault() == "--internal-host")
+{
+    await AzLocal.Host.EmulatorHost.RunAsync(args[1..]);
+    return 0;
+}
+
 var rootCommand = new RootCommand("AzLocal — local Azure emulator CLI");
 
 rootCommand.Add(StartCommand.Build());

@@ -17,7 +17,7 @@ public class SqliteStateStore : IStateStore
 
     public SqliteStateStore(IConfiguration config)
     {
-        var dir = config["AzLocal:SqlitePath"]
+        var dir = (string.IsNullOrWhiteSpace(config["AzLocal:SqlitePath"]) ? null : config["AzLocal:SqlitePath"])
             ?? Path.Combine(Path.GetTempPath(), "azlocal");
         Directory.CreateDirectory(dir);
         _connectionString = $"Data Source={Path.Combine(dir, "state.db")}";

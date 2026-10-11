@@ -11,6 +11,23 @@ public class BlobStorageTests : IClassFixture<EmulatorFixture>
 
     public BlobStorageTests(EmulatorFixture fixture) => _fixture = fixture;
 
+    [Fact]
+    public async Task SharedContainerNamesRemainIsolatedAcrossAccounts()
+    {
+        var name = UniqueName("shared");
+        var a = _fixture.Clients.CreateBlobContainerClient("accounta", name);
+        var b = _fixture.Clients.CreateBlobContainerClient("accountb", name);
+        await a.CreateAsync();
+        await b.CreateAsync();
+        await a.GetBlobClient("File.txt").UploadAsync(new BinaryData("a"));
+        await b.GetBlobClient("File.txt").UploadAsync(new BinaryData("b"));
+        await b.GetBlobClient("file.txt").UploadAsync(new BinaryData("lower"));
+        Assert.Equal("a", (await a.GetBlobClient("File.txt").DownloadContentAsync()).Value.Content.ToString());
+        await a.DeleteAsync();
+        Assert.Equal("b", (await b.GetBlobClient("File.txt").DownloadContentAsync()).Value.Content.ToString());
+        Assert.Equal("lower", (await b.GetBlobClient("file.txt").DownloadContentAsync()).Value.Content.ToString());
+    }
+
     private static string UniqueName(string prefix) => $"{prefix}-{Guid.NewGuid():N}";
 
     [Fact]

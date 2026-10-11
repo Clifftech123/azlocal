@@ -127,7 +127,7 @@ public class BlobServiceHandler : IServiceHandler
         foreach (var b in blobs)
             await _state.DeleteAsync(BlobKey(account, container, b.Name));
 
-        await _blobs.DeleteContainerAsync(container);
+        await _blobs.DeleteContainerAsync(account, container);
         _logger.LogInformation("Container deleted account={Account} container={Container} blobsRemoved={Count}", account, container, blobs.Count);
         SetRequestId(ctx);
         return Results.Accepted();
@@ -145,7 +145,7 @@ public class BlobServiceHandler : IServiceHandler
         var contentType = ctx.Request.Headers["x-ms-blob-content-type"].FirstOrDefault()
             ?? ctx.Request.ContentType
             ?? "application/octet-stream";
-        await _blobs.WriteAsync(container, blobName, ctx.Request.Body, contentType);
+        await _blobs.WriteAsync(account, container, blobName, ctx.Request.Body, contentType);
 
         var etag = Guid.NewGuid().ToString("N");
         var now = DateTimeOffset.UtcNow;
@@ -181,7 +181,7 @@ public class BlobServiceHandler : IServiceHandler
         Stream stream;
         try
         {
-            stream = await _blobs.ReadAsync(container, blobName);
+            stream = await _blobs.ReadAsync(account, container, blobName);
         }
         catch (FileNotFoundException ex)
         {
@@ -199,7 +199,7 @@ public class BlobServiceHandler : IServiceHandler
     private async Task<IResult> DeleteBlobAsync(string account, string container, string blobName, HttpContext ctx)
     {
         await _state.DeleteAsync(BlobKey(account, container, blobName));
-        await _blobs.DeleteAsync(container, blobName);
+        await _blobs.DeleteAsync(account, container, blobName);
         _logger.LogInformation("Blob deleted account={Account} container={Container} blob={Blob}", account, container, blobName);
         SetRequestId(ctx);
         return Results.Accepted();
@@ -227,7 +227,7 @@ public class BlobServiceHandler : IServiceHandler
         $"blob/containers/{account}/{container}".ToLowerInvariant();
 
     private static string BlobKey(string account, string container, string blob) =>
-        $"blob/items/{account}/{container}/{blob}".ToLowerInvariant();
+        $"blob/items/{account}/{container}/{Convert.ToHexString(Encoding.UTF8.GetBytes(blob))}";
 
     // x-ms-request-id is checked by the Azure SDK to correlate requests in logs.
     private static void SetRequestId(HttpContext ctx) =>
