@@ -181,14 +181,30 @@ public sealed class AzlocalClientFactory
             System.Net.IPAddress.TryParse(uri.Host, out var address) && System.Net.IPAddress.IsLoopback(address)))
             throw new InvalidOperationException("Local managed identity requires a loopback endpoint.");
         var options = new Azure.Identity.ManagedIdentityCredentialOptions { Retry = { MaxRetries = 0 } };
-        options.AddPolicy(new LocalIdentityEndpointPolicy(uri), Azure.Core.HttpPipelinePosition.PerCall);
-        if (_handler is not null) options.Transport = new HttpClientTransport(_handler);
+        // Azure Identity clones credential options when probing IMDS. Route at the
+        // transport boundary so both probes and token requests stay local.
+        options.Transport = new LocalIdentityTransport(
+            _handler is null ? HttpClientTransport.Shared : new HttpClientTransport(_handler), uri);
         return new Azure.Identity.ManagedIdentityCredential(options);
     }
 
-    private sealed class LocalIdentityEndpointPolicy(Uri endpoint) : HttpPipelineSynchronousPolicy
+    private sealed class LocalIdentityTransport(HttpPipelineTransport inner, Uri endpoint) : HttpPipelineTransport
     {
-        public override void OnSendingRequest(Azure.Core.HttpMessage message)
+        public override Azure.Core.Request CreateRequest() => inner.CreateRequest();
+
+        public override void Process(Azure.Core.HttpMessage message)
+        {
+            Route(message);
+            inner.Process(message);
+        }
+
+        public override ValueTask ProcessAsync(Azure.Core.HttpMessage message)
+        {
+            Route(message);
+            return inner.ProcessAsync(message);
+        }
+
+        private void Route(Azure.Core.HttpMessage message)
         {
             var path = message.Request.Uri.ToUri().PathAndQuery;
             if (!path.StartsWith("/metadata/", StringComparison.Ordinal))
