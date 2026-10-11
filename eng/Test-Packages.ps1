@@ -42,11 +42,11 @@ foreach ($id in $expectedIds) {
         if ($manifest.package.metadata.id -cne $id -or $manifest.package.metadata.version -cne $Version) {
             throw "Package identity/version mismatch in $package"
         }
-        if ($manifest.package.metadata.license.'#text' -ne 'MIT' -or $manifest.package.metadata.readme -ne 'README.md') {
+        if ($manifest.package.metadata.license.'#text' -ne 'MIT' -or $manifest.package.metadata.readme -ne 'NUGET_README.md' -or $manifest.package.metadata.icon -ne 'icon.png') {
             throw "Missing release metadata in $package"
         }
-        if (-not $archive.GetEntry('README.md') -or -not $archive.GetEntry('LICENSE')) {
-            throw "Missing README or license in $package"
+        if (-not $archive.GetEntry('NUGET_README.md') -or -not $archive.GetEntry('LICENSE') -or -not $archive.GetEntry('icon.png')) {
+            throw "Missing package README, icon, or license in $package"
         }
     } finally { $archive.Dispose() }
 }

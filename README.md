@@ -1,4 +1,6 @@
-﻿# azlocal
+![azlocal â€” Azure services. Local development.](assets/branding/banner.png)
+
+# azlocal
 
 Run Azure services locally while you build and test .NET applications.
 

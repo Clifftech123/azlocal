@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">azlocal terminal mark</title>
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="#0078D4"/>
+  <path d="M34 58V39h19M75 39h19v19M34 70v19h19M75 89h19V70" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M47 59l10 9-10 9M66 77h15" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="92" cy="36" r="12" fill="#50E6FF"/>
+</svg>
