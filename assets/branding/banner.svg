@@ -1,25 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title description">
-  <title id="title">azlocal</title>
-  <desc id="description">Azure services. Local development.</desc>
-  <rect width="1200" height="360" rx="24" fill="#071B32"/>
-  <path d="M850 0h350v360H730z" fill="#0B2C4B"/>
-  <path d="M972 0h228v360H852z" fill="#103A60"/>
-  <g transform="translate(54 56) scale(.75)">
-    <rect x="0" y="0" width="128" height="128" rx="30" fill="#0078D4"/>
-    <path d="M26 50V31h19M67 31h19v19M26 62v19h19M67 81h19V62M39 51l10 9-10 9M58 69h15" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="84" cy="28" r="12" fill="#50E6FF"/>
-  </g>
-  <g font-family="Segoe UI,Arial,sans-serif">
-    <text x="174" y="130" font-size="68" font-weight="700" fill="#FFFFFF">azlocal</text>
-    <text x="56" y="211" font-size="30" fill="#FFFFFF">Azure services. Local development.</text>
-    <text x="56" y="250" font-size="19" fill="#B4CCE2">Build and test with the Azure SDKs on your machine.</text>
-    <text x="56" y="310" font-size="16" font-weight="600" fill="#50E6FF">BLOB STORAGE  /  KEY VAULT  /  SERVICE BUS  /  ARM</text>
-  </g>
-  <rect x="800" y="89" width="330" height="185" rx="14" fill="#071B32" stroke="#295575" stroke-width="2"/>
-  <circle cx="824" cy="110" r="4" fill="#50E6FF"/><circle cx="840" cy="110" r="4" fill="#0078D4"/><circle cx="856" cy="110" r="4" fill="#295575"/>
-  <g font-family="Consolas,monospace" font-size="19">
-    <text x="824" y="158" fill="#50E6FF">&gt; azlocal start</text>
-    <text x="824" y="201" fill="#FFFFFF">127.0.0.1:4566</text>
-    <text x="824" y="242" font-size="16" fill="#B4CCE2">your local Azure emulator</text>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">azlocal terminal mark</title>
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="#0078D4"/>
+  <path d="M34 58V39h19M75 39h19v19M34 70v19h19M75 89h19V70" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M47 59l10 9-10 9M66 77h15" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="92" cy="36" r="12" fill="#50E6FF"/>
 </svg>

@@ -2,7 +2,7 @@
 
 ## 0.1.0-alpha.1
 
-First public testing release, pending publication.
+First public testing release, published on NuGet.
 
 - Local Blob Storage and Key Vault Secrets operations through the official .NET SDKs.
 - Service Bus queues over AMQP: single and batch sends, peek, receive, settlement, lock renewal, and dead-letter queues.

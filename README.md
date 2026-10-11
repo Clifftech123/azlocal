@@ -1,9 +1,12 @@
-![azlocal - Azure services. Local development.](assets/branding/banner.png)
+![azlocal logo](assets/branding/icon.png)
 
 # azlocal
 
 [![CI](https://github.com/Clifftech123/azlocal/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Clifftech123/azlocal/actions/workflows/ci.yml)
-[![NuGet: release pending](https://img.shields.io/badge/NuGet-release%20pending-0078D4)](https://github.com/Clifftech123/azlocal/releases)
+[![CLI version](https://img.shields.io/nuget/vpre/azlocal?label=CLI&color=0078D4)](https://www.nuget.org/packages/azlocal)
+[![Client version](https://img.shields.io/nuget/vpre/AzLocal.Client?label=Client&color=0078D4)](https://www.nuget.org/packages/AzLocal.Client)
+[![CLI downloads](https://img.shields.io/nuget/dt/azlocal?label=CLI%20downloads&color=0078D4)](https://www.nuget.org/packages/azlocal)
+[![Client downloads](https://img.shields.io/nuget/dt/AzLocal.Client?label=Client%20downloads&color=0078D4)](https://www.nuget.org/packages/AzLocal.Client)
 [![License: MIT](https://img.shields.io/badge/license-MIT-0078D4)](LICENSE)
 
 Run Azure services locally while you build and test .NET applications.
@@ -47,7 +50,7 @@ The suggested build order is Queue Storage, Table Storage, App Configuration, th
 
 You need the .NET 10 SDK on Windows, Linux, or macOS. Check it with `dotnet --list-sdks`; an application runtime alone does not include the certificate setup tools. Source builds use the SDK selection in `global.json`.
 
-The CLI runs the emulator. The client library connects your application to it. The first testing release is `0.1.0-alpha.1`. After that version is published to NuGet, install it with:
+The CLI runs the emulator. The client library connects your application to it. Version `0.1.0-alpha.1` is available on NuGet as a testing prerelease. Install it with:
 
 ```sh
 dotnet tool install --global azlocal --version 0.1.0-alpha.1
@@ -59,7 +62,7 @@ From your application or test project directory:
 dotnet add package AzLocal.Client --version 0.1.0-alpha.1
 ```
 
-**Publication status:** the first NuGet release is being prepared. Until it is published, use the [source setup](#contributing) below. Check [GitHub releases](https://github.com/Clifftech123/azlocal/releases) for the published versions. The Core dependency is installed automatically with the client library.
+Check [GitHub releases](https://github.com/Clifftech123/azlocal/releases) for published versions and changes. The Core dependency is installed automatically with the client library. Use the [source setup](#contributing) if you want to work on the project or test unreleased changes.
 
 Once installed, start the emulator:
 
