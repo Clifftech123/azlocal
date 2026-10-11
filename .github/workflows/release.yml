@@ -1,0 +1,147 @@
+name: NuGet release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Package version to build and test (this manual run does not publish)
+        required: true
+        default: 0.1.0-alpha.1
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nuget-${{ github.event.release.tag_name || inputs.version }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.version.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate release version and source
+        id: version
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+          IS_PRERELEASE: ${{ github.event.release.prerelease }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          $publish = $env:EVENT_NAME -eq 'release'
+          if ($publish) {
+            if (-not $env:TAG_NAME.StartsWith('v')) { throw 'Release tags must start with v.' }
+            $version = $env:TAG_NAME.Substring(1)
+          } else {
+            $version = $env:REQUESTED_VERSION
+          }
+          if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$') {
+            throw 'Use a version such as 0.1.0-alpha.1 or 0.1.0.'
+          }
+          $null = [System.Management.Automation.SemanticVersion]::Parse($version)
+          if ($publish) {
+            $prerelease = $version.Contains('-')
+            if ($prerelease -ne ($env:IS_PRERELEASE -eq 'true')) {
+              throw 'The GitHub prerelease flag must match the version suffix.'
+            }
+            git merge-base --is-ancestor HEAD origin/main
+            if ($LASTEXITCODE -ne 0) { throw 'Publish releases only from commits merged into main.' }
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "publish=$($publish.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
+  build-and-test:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    env:
+      PACKAGE_VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore -p:Version=${{ env.PACKAGE_VERSION }}
+      - name: Build
+        run: dotnet build --configuration Release --no-restore -p:Version=${{ env.PACKAGE_VERSION }}
+      - name: Test
+        run: dotnet test --configuration Release --no-build --no-restore --logger trx -p:Version=${{ env.PACKAGE_VERSION }}
+      - name: Pack
+        shell: pwsh
+        run: ./eng/Pack.ps1 -Version '${{ env.PACKAGE_VERSION }}' -NoBuild
+      - name: Test installed packages
+        shell: pwsh
+        run: ./eng/Test-Packages.ps1 -PackageDirectory 'artifacts/packages/${{ env.PACKAGE_VERSION }}' -Version '${{ env.PACKAGE_VERSION }}'
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-packages-${{ matrix.os }}
+          path: artifacts/packages/${{ env.PACKAGE_VERSION }}/*.nupkg
+          if-no-files-found: error
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-tests-${{ matrix.os }}
+          path: '**/TestResults/*.trx'
+          if-no-files-found: ignore
+
+  publish:
+    needs: [validate, build-and-test]
+    if: needs.validate.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-packages-ubuntu-latest
+          path: artifacts/packages
+      - name: Publish Core, Client, and CLI to NuGet
+        shell: pwsh
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          PACKAGE_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:NUGET_API_KEY)) {
+            throw 'Add the NUGET_API_KEY repository secret before publishing a release.'
+          }
+          foreach ($id in @('AzLocal.Core', 'AzLocal.Client', 'azlocal')) {
+            $package = "artifacts/packages/$id.$env:PACKAGE_VERSION.nupkg"
+            dotnet nuget push $package --source https://api.nuget.org/v3/index.json --api-key $env:NUGET_API_KEY --skip-duplicate
+            if ($LASTEXITCODE -ne 0) { throw "Publishing $id failed." }
+          }
+      - name: Attach packages to the GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          $packages = @(Get-ChildItem artifacts/packages -Filter '*.nupkg' | ForEach-Object { $_.FullName })
+          gh release upload $env:TAG_NAME @packages --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Uploading release assets failed.' }

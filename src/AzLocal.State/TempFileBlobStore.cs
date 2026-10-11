@@ -14,8 +14,8 @@ public class TempFileBlobStore : IBlobFileStore
 
     public TempFileBlobStore(IConfiguration config)
     {
-        _basePath = (string.IsNullOrWhiteSpace(config["AzLocal:BlobStorePath"]) ? null : config["AzLocal:BlobStorePath"])
-            ?? Path.Combine(Path.GetTempPath(), "azlocal", "blobs");
+        _basePath = Path.GetFullPath((string.IsNullOrWhiteSpace(config["AzLocal:BlobStorePath"]) ? null : config["AzLocal:BlobStorePath"])
+            ?? Path.Combine(Path.GetTempPath(), "azlocal", "blobs"));
         Directory.CreateDirectory(_basePath);
     }
 
@@ -82,11 +82,16 @@ public class TempFileBlobStore : IBlobFileStore
         return path;
     }
 
-    private static void RejectLinks(string path)
+    private void RejectLinks(string path)
     {
-        for (var current = Path.GetFullPath(path); current is not null; current = Path.GetDirectoryName(current))
+        // Inspect the configured root and its children. System ancestors outside
+        // that root may legitimately be links, such as macOS temporary directories.
+        for (var current = Path.GetFullPath(path); current is not null; current = Path.GetDirectoryName(current)) {
             if (Path.Exists(current) && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
                 throw new IOException("Blob storage paths must not contain symbolic links or junctions.");
+            if (string.Equals(current, _basePath, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                break;
+        }
     }
 
     #endregion

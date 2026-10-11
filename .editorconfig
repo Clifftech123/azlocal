@@ -1,0 +1,109 @@
+# Repository-wide editor settings.
+root = true
+
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 4
+tab_width = 4
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Preserve Markdown's two-space line breaks.
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{json,jsonc,yml,yaml,csproj,props,targets,slnx}]
+indent_size = 2
+
+[*.{sh,bash}]
+end_of_line = lf
+
+[*.{cs,vb}]
+indent_style = tab
+
+[*.cs]
+# New lines.
+csharp_new_line_before_open_brace = none
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_new_line_before_members_in_object_initializers = true
+csharp_new_line_before_members_in_anonymous_types = true
+csharp_new_line_within_query_expression_clauses = true
+
+# Spacing.
+csharp_space_after_cast = false
+csharp_space_after_colon_in_inheritance_clause = true
+csharp_space_after_comma = true
+csharp_space_after_dot = false
+csharp_space_after_keywords_in_control_flow_statements = true
+csharp_space_after_semicolon_in_for_statement = true
+csharp_space_around_binary_operators = before_and_after
+csharp_space_around_declaration_statements = do_not_ignore
+csharp_space_before_colon_in_inheritance_clause = true
+csharp_space_before_comma = false
+csharp_space_before_dot = false
+csharp_space_before_open_square_brackets = false
+csharp_space_before_semicolon_in_for_statement = false
+csharp_space_between_empty_square_brackets = false
+csharp_space_between_method_call_empty_parameter_list_parentheses = false
+csharp_space_between_method_call_name_and_opening_parenthesis = false
+csharp_space_between_method_call_parameter_list_parentheses = false
+csharp_space_between_method_declaration_empty_parameter_list_parentheses = false
+csharp_space_between_method_declaration_name_and_open_parenthesis = false
+csharp_space_between_method_declaration_parameter_list_parentheses = false
+csharp_space_between_parentheses = false
+csharp_space_between_square_brackets = false
+
+# Indentation.
+csharp_indent_block_contents = true
+csharp_indent_braces = false
+csharp_indent_case_contents = true
+csharp_indent_case_contents_when_block = false
+csharp_indent_switch_labels = true
+csharp_indent_labels = one_less_than_current
+
+# Constants and static readonly fields use PascalCase. These more specific
+# rules take precedence over the private/internal field rule below.
+dotnet_naming_rule.constants_use_pascal_case.symbols = constant_fields
+dotnet_naming_rule.constants_use_pascal_case.style = pascal_case
+dotnet_naming_rule.constants_use_pascal_case.severity = suggestion
+dotnet_naming_symbols.constant_fields.applicable_kinds = field
+dotnet_naming_symbols.constant_fields.applicable_accessibilities = *
+dotnet_naming_symbols.constant_fields.required_modifiers = const
+
+dotnet_naming_rule.static_readonly_fields_use_pascal_case.symbols = static_readonly_fields
+dotnet_naming_rule.static_readonly_fields_use_pascal_case.style = pascal_case
+dotnet_naming_rule.static_readonly_fields_use_pascal_case.severity = suggestion
+dotnet_naming_symbols.static_readonly_fields.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_fields.applicable_accessibilities = *
+dotnet_naming_symbols.static_readonly_fields.required_modifiers = static, readonly
+dotnet_naming_style.pascal_case.capitalization = pascal_case
+
+# Private/internal fields use _camelCase, matching the existing codebase.
+dotnet_naming_rule.private_internal_fields_use_underscore.symbols = private_internal_fields
+dotnet_naming_rule.private_internal_fields_use_underscore.style = underscore_camel_case
+dotnet_naming_rule.private_internal_fields_use_underscore.severity = suggestion
+dotnet_naming_symbols.private_internal_fields.applicable_kinds = field
+dotnet_naming_symbols.private_internal_fields.applicable_accessibilities = private, internal
+dotnet_naming_style.underscore_camel_case.required_prefix = _
+dotnet_naming_style.underscore_camel_case.capitalization = camel_case
+
+# Locals and parameters use camelCase.
+dotnet_naming_rule.locals_and_parameters_use_camel_case.symbols = locals_and_parameters
+dotnet_naming_rule.locals_and_parameters_use_camel_case.style = camel_case
+dotnet_naming_rule.locals_and_parameters_use_camel_case.severity = error
+dotnet_naming_symbols.locals_and_parameters.applicable_kinds = parameter, local
+dotnet_naming_style.camel_case.capitalization = camel_case
+
+# Async methods end in Async.
+dotnet_naming_rule.async_methods_end_in_async.symbols = async_methods
+dotnet_naming_rule.async_methods_end_in_async.style = async_pascal_case
+dotnet_naming_rule.async_methods_end_in_async.severity = suggestion
+dotnet_naming_symbols.async_methods.applicable_kinds = method
+dotnet_naming_symbols.async_methods.applicable_accessibilities = *
+dotnet_naming_symbols.async_methods.required_modifiers = async
+dotnet_naming_style.async_pascal_case.required_suffix = Async
+dotnet_naming_style.async_pascal_case.capitalization = pascal_case

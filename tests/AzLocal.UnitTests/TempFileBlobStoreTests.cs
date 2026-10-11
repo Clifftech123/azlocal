@@ -52,6 +52,38 @@ public class TempFileBlobStoreTests : IDisposable
     private TempFileBlobStore NewStore() =>
         new(new InMemoryConfig("AzLocal:BlobStorePath", _dir));
 
+    [Fact]
+    public async Task SystemAncestorLinksDoNotPreventBlobStorage() {
+        // Windows link creation requires privileges; Unix temporary directories
+        // commonly have linked ancestors, which this case reproduces.
+        if (OperatingSystem.IsWindows()) return;
+        Directory.CreateDirectory(_dir);
+        var physical = Path.Combine(_dir, "physical");
+        Directory.CreateDirectory(physical);
+        var linked = Path.Combine(_dir, "linked");
+        Directory.CreateSymbolicLink(linked, physical);
+        var store = new TempFileBlobStore(new InMemoryConfig("AzLocal:BlobStorePath", Path.Combine(linked, "blobs")));
+        await store.WriteAsync("account", "container", "file", ToStream("linked ancestor"), "text/plain");
+        await using var content = await store.ReadAsync("account", "container", "file");
+        Assert.Equal("linked ancestor", await new StreamReader(content).ReadToEndAsync());
+    }
+
+    [Fact]
+    public async Task LinksInsideTheBlobRootRemainRejected() {
+        if (OperatingSystem.IsWindows()) return;
+        var store = NewStore();
+        await store.WriteAsync("account", "container", "file", ToStream("original"), "text/plain");
+        var accountDirectory = Assert.Single(Directory.GetDirectories(_dir));
+        var containerDirectory = Assert.Single(Directory.GetDirectories(accountDirectory));
+        var filePath = Assert.Single(Directory.GetFiles(containerDirectory));
+        File.Delete(filePath);
+        var outsidePath = Path.Combine(_dir, "outside");
+        await File.WriteAllTextAsync(outsidePath, "unchanged");
+        File.CreateSymbolicLink(filePath, outsidePath);
+        await Assert.ThrowsAsync<IOException>(() => store.WriteAsync("account", "container", "file", ToStream("blocked"), "text/plain"));
+        Assert.Equal("unchanged", await File.ReadAllTextAsync(outsidePath));
+    }
+
     private static Stream ToStream(string content) => new MemoryStream(Encoding.UTF8.GetBytes(content));
 
     [Fact]

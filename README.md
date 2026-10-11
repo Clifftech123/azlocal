@@ -41,19 +41,19 @@ The suggested build order is Queue Storage, Table Storage, App Configuration, th
 
 You need the .NET 10 SDK.
 
-The CLI runs the emulator. The client library connects your application to it. After the packages are published to NuGet, install them with:
+The CLI runs the emulator. The client library connects your application to it. The first testing release is `0.1.0-alpha.1`. After that version is published to NuGet, install it with:
 
 ```sh
-dotnet tool install --global azlocal
+dotnet tool install --global azlocal --version 0.1.0-alpha.1
 ```
 
 From your application or test project directory:
 
 ```sh
-dotnet add package AzLocal.Client
+dotnet add package AzLocal.Client --version 0.1.0-alpha.1
 ```
 
-**Publication status:** these packages are not available on NuGet yet. Until the first release, use the [source setup](#contributing) below.
+**Publication status:** the first NuGet release is being prepared. Until it is published, use the [source setup](#contributing) below. Check [GitHub releases](https://github.com/Clifftech123/azlocal/releases) for the published versions. The Core dependency is installed automatically with the client library.
 
 Once installed, start the emulator:
 
@@ -345,12 +345,14 @@ To build and install the CLI locally, run these commands from the repository dir
 
 ```sh
 dotnet pack src/AzLocal.Cli -c Release -o artifacts/packages
-dotnet tool install --global azlocal --add-source artifacts/packages
+dotnet tool install --global azlocal --add-source artifacts/packages --version 0.1.0-alpha.1
 ```
 
 The tool package includes the host and can run from any directory.
 
 See [Contributing](docs/CONTRIBUTING.md) for the project layout and [Services](docs/SERVICES.md) for service documentation.
+
+See [Releasing](docs/RELEASING.md) for prerelease testing, NuGet setup, and stable publication.
 
 ## License
 
