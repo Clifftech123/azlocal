@@ -2,6 +2,12 @@
 
 # azlocal
 
+[![CI](https://github.com/Clifftech123/azlocal/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Clifftech123/azlocal/actions/workflows/ci.yml)
+[![CLI version](https://img.shields.io/nuget/vpre/azlocal?label=CLI&color=0078D4)](https://www.nuget.org/packages/azlocal)
+[![Client version](https://img.shields.io/nuget/vpre/AzLocal.Client?label=Client&color=0078D4)](https://www.nuget.org/packages/AzLocal.Client)
+[![CLI downloads](https://img.shields.io/nuget/dt/azlocal?label=CLI%20downloads&color=0078D4)](https://www.nuget.org/packages/azlocal)
+[![License: MIT](https://img.shields.io/badge/license-MIT-0078D4)](https://github.com/Clifftech123/azlocal/blob/main/LICENSE)
+
 Run a local Azure emulator for .NET development and automated tests. Work with blobs, test secrets, queues, and resource groups through the official Azure SDK clients, without an Azure subscription.
 
 ## Packages
