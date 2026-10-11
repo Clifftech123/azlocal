@@ -18,7 +18,7 @@ The goal is to support the services below for local development and testing. Som
 | Key Vault Secrets | Set, get, list, and delete secrets; read secret versions | `Azure.Security.KeyVault.Secrets` |
 | Service Bus queues | Send single messages and batches; peek, receive, complete, abandon, renew locks, and dead-letter messages; read dead-letter queues | `Azure.Messaging.ServiceBus` over local AMQP, or HTTP |
 | Resource management | Create, read, list, and delete resource groups; preserve tags; read the configured subscription | `Azure.ResourceManager`, or HTTP |
-| Managed identity | Acquire a local test token with resource and expiry fields | `Azure.Identity.ManagedIdentityCredential` through the factory |
+| Managed identity | Acquire a local test token with resource and expiry fields | `Azure.Identity.ManagedIdentityCredential` through DI |
 
 These services support the operations listed here. They do not implement the full Azure APIs. Managed identity returns test tokens. See [SDK compatibility](docs/SDK_COMPAT.md) for setup and remaining limitations.
 
@@ -80,95 +80,166 @@ Use `127.0.0.1` when configuring Blob Storage clients so the SDK parses the loca
 
 ## Connect your application
 
-With `AzLocal.Client` referenced in your application or test project, create a factory for the running emulator:
+With `AzLocal.Client` referenced in your application or test project, register the clients once with dependency injection. Application services receive the SDK clients through their constructors.
+
+### Dependency injection
+
+For an ASP.NET Core application, register the local clients in `Program.cs`:
 
 ```csharp
 using AzLocal.Client;
+using Azure.Messaging.ServiceBus;
+using Azure.Storage.Blobs;
 
-var factory = new AzlocalClientFactory();
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddAzLocal(options =>
+{
+    options.BaseUrl = "https://127.0.0.1:4566";
+    options.BlobAccountName = "myaccount";
+    options.BlobContainerName = "uploads";
+    options.KeyVaultName = "myvault";
+    options.ServiceBusQueueName = "myqueue";
+    options.AmqpPort = 5672;
+});
+builder.Services.AddScoped<UploadService>();
+
+var app = builder.Build();
+app.MapPost("/uploads/{name}", async (
+    string name, HttpRequest request, UploadService uploads, CancellationToken cancellationToken) =>
+{
+    await uploads.UploadAsync(name, request.Body, cancellationToken);
+    return Results.Ok();
+});
+app.Run();
+
+public sealed class UploadService(BlobContainerClient container, ServiceBusSender sender)
+{
+    public async Task UploadAsync(string name, Stream content, CancellationToken cancellationToken)
+    {
+        await container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        await container.GetBlobClient(name).UploadAsync(
+            content, overwrite: true, cancellationToken: cancellationToken);
+        await sender.SendMessageAsync(new ServiceBusMessage(name), cancellationToken);
+    }
+}
 ```
 
-For a custom port, pass the address: `new AzlocalClientFactory("https://127.0.0.1:5001")`.
+`AddAzLocal` registers SDK clients as singletons so requests can reuse them. Your application services can be scoped, as above, or transient with `AddTransient`. The container closes registered Service Bus clients, senders, and receivers when the application shuts down; do not dispose injected clients yourself.
+
+| Configuration | Clients available for injection |
+| --- | --- |
+| Default registration | `TokenCredential`, `ManagedIdentityCredential`, `ArmClient`, `ServiceBusClient` |
+| `BlobAccountName` | `BlobServiceClient` |
+| `BlobAccountName` and `BlobContainerName` | `BlobContainerClient` |
+| `KeyVaultName` | `SecretClient` |
+| `ServiceBusQueueName` | `ServiceBusSender` and `ServiceBusReceiver` |
+
+A custom HTTP port is configured through `BaseUrl`; the AMQP port is separate. For in-process tests, supply `TransportHandler` from your test host. This HTTP handler does not replace the AMQP TCP connection.
+
+Existing registrations are preserved. Register `AddAzLocal` once in your local development or test setup. The emulator still needs to be running; registering clients does not start it or create resources.
 
 ### Blob Storage
 
+Inject `BlobContainerClient` into your application service:
+
 ```csharp
-var container = factory.CreateBlobContainerClient("myaccount", "uploads");
-await container.CreateIfNotExistsAsync();
+using Azure.Storage.Blobs;
 
-var blob = container.GetBlobClient("hello.txt");
-await blob.UploadAsync(new BinaryData("hello from azlocal"), overwrite: true);
-
-var download = await blob.DownloadContentAsync();
-Console.WriteLine(download.Value.Content.ToString());
+public sealed class BlobExample(BlobContainerClient container)
+{
+    public async Task<string> UploadAndDownloadAsync(CancellationToken cancellationToken)
+    {
+        await container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+        var blob = container.GetBlobClient("hello.txt");
+        await blob.UploadAsync(new BinaryData("hello from azlocal"),
+            overwrite: true, cancellationToken: cancellationToken);
+        var download = await blob.DownloadContentAsync(cancellationToken);
+        return download.Value.Content.ToString();
+    }
+}
 ```
 
 ### Key Vault Secrets
 
 ```csharp
-var secrets = factory.CreateSecretClient("myvault");
+using Azure.Security.KeyVault.Secrets;
 
-await secrets.SetSecretAsync("api-key", "test-value");
-var secret = await secrets.GetSecretAsync("api-key");
-Console.WriteLine(secret.Value.Value);
+public sealed class SecretExample(SecretClient secrets)
+{
+    public async Task<string> SetAndGetAsync(CancellationToken cancellationToken)
+    {
+        await secrets.SetSecretAsync("api-key", "test-value", cancellationToken);
+        var secret = await secrets.GetSecretAsync("api-key", cancellationToken: cancellationToken);
+        return secret.Value.Value;
+    }
+}
 ```
 
 ### Service Bus queues
 
-The AMQP listener runs on `127.0.0.1:5672`. It uses the HTTP namespace `local`, so SDK clients and `CreateServiceBusHttpClient("local")` share the same queues. Queues are created when first used. Message locks last 30 seconds and can be renewed.
+The AMQP listener runs on `127.0.0.1:5672` and uses the namespace `local`. Set `ServiceBusQueueName` during registration to inject a sender and receiver for that queue. Queues are created when first used. Message locks last 30 seconds and can be renewed.
 
 ```csharp
 using Azure.Messaging.ServiceBus;
 
-await using var bus = factory.CreateServiceBusClient();
-await using var sender = bus.CreateSender("myqueue");
-await sender.SendMessageAsync(new ServiceBusMessage("hello"));
-
-await using var receiver = bus.CreateReceiver("myqueue");
-var message = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(2));
-if (message is not null)
+public sealed class QueueExample(ServiceBusSender sender, ServiceBusReceiver receiver)
 {
-    Console.WriteLine(message.Body.ToString());
-    await receiver.CompleteMessageAsync(message);
+    public async Task<string?> SendAndReceiveAsync(CancellationToken cancellationToken)
+    {
+        await sender.SendMessageAsync(new ServiceBusMessage("hello"), cancellationToken);
+        var message = await receiver.ReceiveMessageAsync(TimeSpan.FromSeconds(2), cancellationToken);
+        if (message is null) return null;
+        await receiver.CompleteMessageAsync(message, cancellationToken);
+        return message.Body.ToString();
+    }
 }
 ```
 
-This supports local queue operations. Topics, sessions, transactions, scheduled delivery, message deferral, and administration APIs are not implemented.
+Topics, sessions, transactions, scheduled delivery, message deferral, and administration APIs are not implemented.
 
 ### Resource groups
 
 ```csharp
 using Azure;
 using Azure.Core;
+using Azure.ResourceManager;
 using Azure.ResourceManager.Resources;
 
-var arm = factory.CreateArmClient();
-var subscription = await arm.GetDefaultSubscriptionAsync();
-var groups = subscription.GetResourceGroups();
-
-var created = await groups.CreateOrUpdateAsync(
-    WaitUntil.Completed, "my-rg", new ResourceGroupData(new AzureLocation("eastus")));
-Console.WriteLine(created.Value.Data.Name);
-await created.Value.DeleteAsync(WaitUntil.Completed);
+public sealed class ResourceGroupExample(ArmClient arm)
+{
+    public async Task CreateAndDeleteAsync(CancellationToken cancellationToken)
+    {
+        var subscription = await arm.GetDefaultSubscriptionAsync(cancellationToken);
+        var created = await subscription.GetResourceGroups().CreateOrUpdateAsync(
+            WaitUntil.Completed, "my-rg", new ResourceGroupData(new AzureLocation("eastus")),
+            cancellationToken);
+        await created.Value.DeleteAsync(WaitUntil.Completed, cancellationToken: cancellationToken);
+    }
+}
 ```
+
+Register each application service you use with `AddScoped` or `AddTransient`, just like `UploadService` above.
 
 ### Managed identity
 
-Use the factory to point the official managed identity credential at the local endpoint:
+`AddAzLocal` registers `ManagedIdentityCredential` for local IMDS token acquisition. To use it as the credential for injected ARM clients, add this registration before `AddAzLocal`:
 
 ```csharp
-var credential = factory.CreateManagedIdentityCredential();
-var arm = factory.CreateArmClient(credential: credential);
-var subscription = await arm.GetDefaultSubscriptionAsync();
+using Azure.Core;
+using Azure.Identity;
+
+builder.Services.AddSingleton<TokenCredential>(provider =>
+    provider.GetRequiredService<ManagedIdentityCredential>());
+builder.Services.AddAzLocal();
 ```
 
-The endpoint validates token requests and returns test tokens with a one-hour expiry. It does not contact Microsoft Entra ID. IMDSv2 key-bound tokens are not supported.
+Your application service still injects `ArmClient`. The endpoint validates token requests and returns test tokens with a one-hour expiry. It does not contact Microsoft Entra ID. IMDSv2 key-bound tokens are not supported.
 
 ## Use in tests
 
-Start the emulator before your test run and create clients with `AzlocalClientFactory`. Give each test unique resource names to keep test data separate.
+Start the emulator before your test run and register clients with `AddAzLocal` in the test service collection. Give each test unique resource names to keep test data separate.
 
-For tests that run the host inside the test process, use `WebApplicationFactory<Program>` with a reference to `AzLocal.Host` and `Microsoft.AspNetCore.Mvc.Testing`. Pass `Server.CreateHandler()` to the client factory and configure a separate blob directory for each fixture. The repository's [EmulatorFixture](tests/AzLocal.IntegrationTests/Fixtures/EmulatorFixture.cs) shows the setup.
+For tests that run the host inside the test process, use `WebApplicationFactory<Program>` with a reference to `AzLocal.Host` and `Microsoft.AspNetCore.Mvc.Testing`. Set `options.TransportHandler` to `Server.CreateHandler()` in `AddAzLocal` and configure a separate blob directory for each fixture. The [dependency injection tests](tests/AzLocal.CompatTests/DependencyInjectionTests.cs) show registration and constructor injection against the test host. Service Bus still needs a local AMQP listener.
 
 ## State and configuration
 

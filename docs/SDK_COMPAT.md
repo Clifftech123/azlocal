@@ -12,23 +12,19 @@ azlocal supports the operations listed below with the official .NET SDKs. It doe
 
 ## Client setup
 
-Create an `AzlocalClientFactory` for the running host. The default HTTP endpoint is `https://127.0.0.1:4566`. Its methods configure local endpoints and test credentials:
+Register SDK clients with `services.AddAzLocal(options => { ... })` and inject them into your application services. The default HTTP endpoint is `https://127.0.0.1:4566`.
 
-- `CreateBlobServiceClient(account)`, `CreateBlobContainerClient(account, container)`, and `CreateBlobClient(account, container, name)` return Blob Storage SDK clients.
-- `CreateSecretClient(vault)` returns a Key Vault secret client.
-- `CreateServiceBusClient(amqpPort: 5672)` returns an official Service Bus client.
-- `CreateArmClient()` returns an official ARM client.
-- `CreateManagedIdentityCredential()` returns an official managed identity credential configured for local IMDS requests.
+Set `BlobAccountName`, `BlobContainerName`, `KeyVaultName`, and `ServiceBusQueueName` for the clients you need. `BaseUrl` and `AmqpPort` select the HTTP and AMQP endpoints. See the [README example](../README.md#dependency-injection).
 
 ## Blob Storage and Key Vault
 
 Trust the development certificate before using the HTTP SDK clients. Token-based Blob Storage clients need HTTPS. Use the literal IP `127.0.0.1` so the Blob SDK recognizes account paths.
 
-Key Vault uses a local authentication challenge. The factory disables challenge resource verification for the local endpoint. This setting is intended for the emulator.
+Key Vault uses a local authentication challenge. The registered client disables challenge resource verification for the local endpoint. This setting is intended for the emulator.
 
 ## Service Bus
 
-The host starts an AMQP 1.0 TCP listener on `127.0.0.1:5672`. The client factory uses `UseDevelopmentEmulator=true` and fake SAS credentials. The listener is bound to loopback, and connections are plaintext.
+The host starts an AMQP 1.0 TCP listener on `127.0.0.1:5672`. The registered client uses `UseDevelopmentEmulator=true` and fake SAS credentials. The listener is bound to loopback, and connections are plaintext.
 
 AMQP clients use the HTTP namespace `local`. Queues are created on first use. HTTP and AMQP operations use the same state store and coordinator, so they share messages and locks.
 
@@ -44,7 +40,7 @@ Resource-group operations finish immediately. SDK calls with `WaitUntil.Complete
 
 ## Managed identity
 
-`CreateManagedIdentityCredential()` routes IMDS requests to the local host. It does not change global environment variables or send requests to Azure's metadata address.
+The registered `ManagedIdentityCredential` routes IMDS requests to the local host. It does not change global environment variables or send requests to Azure's metadata address.
 
 The token endpoint requires GET, `Metadata: true`, an API version, and an absolute resource URI. It returns the configured fake token, the requested resource, and a one-hour expiry. Discovery responses allow the official credential to select the local IMDSv1 flow.
 
@@ -53,3 +49,9 @@ Tokens are for local tests and are not issued or validated by Microsoft Entra ID
 ## Tests
 
 [AzLocal.CompatTests](../tests/AzLocal.CompatTests) calls the official ARM, Service Bus, and managed identity SDKs. Blob Storage and Key Vault SDK tests are in [AzLocal.IntegrationTests](../tests/AzLocal.IntegrationTests).
+
+## Dependency injection
+
+Call `services.AddAzLocal(options => { ... })` to register SDK clients as singletons. Set `BlobAccountName`, `BlobContainerName`, `KeyVaultName`, and `ServiceBusQueueName` for the clients your application injects. `BaseUrl` and `AmqpPort` select the HTTP and AMQP endpoints. See the [README example](../README.md#dependency-injection).
+
+The container owns the Service Bus client and registered senders and receivers. Use asynchronous disposal for a manually built service provider. Existing client registrations are preserved. Application services can use scoped or transient lifetimes while sharing the singleton SDK clients.

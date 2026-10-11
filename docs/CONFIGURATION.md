@@ -15,6 +15,6 @@ Build the standalone CLI tool with `dotnet pack src/AzLocal.Cli -c Release -o ar
 
 HTTP services use `https://127.0.0.1:4566` by default. Service Bus also listens on `127.0.0.1:5672` for AMQP clients. Set `AzLocal:AmqpPort` (or `AzLocal__AmqpPort` as an environment variable) to change the AMQP port. Set `AzLocal:AmqpEnabled` to `false` to disable the AMQP listener, for example in tests that only need HTTP.
 
-AMQP uses the HTTP namespace `local`. Pass a custom AMQP port to `CreateServiceBusClient(amqpPort: ...)`. The HTTP `--port` option does not change the AMQP port.
+AMQP uses the HTTP namespace `local`. Set `options.AmqpPort` in `AddAzLocal` to match a custom AMQP port. The HTTP `--port` option does not change the AMQP port.
 
-Use `CreateArmClient()` for local subscriptions and resource groups. Use `CreateManagedIdentityCredential()` to route official managed identity token requests to the local HTTP endpoint without changing machine-wide settings.
+Register clients with `AddAzLocal` and inject `ArmClient` for local subscriptions and resource groups. The registered `ManagedIdentityCredential` routes token requests to the local HTTP endpoint without changing machine-wide settings.
