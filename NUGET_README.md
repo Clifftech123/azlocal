@@ -29,6 +29,18 @@ azlocal wait
 
 The HTTPS endpoint is `https://127.0.0.1:4566`; Service Bus uses local AMQP on port `5672`. Certificate trust depends on your operating system. Use `azlocal status` to check the host and `azlocal stop` to stop it.
 
+### Certificate setup
+
+`azlocal trust-cert` runs `dotnet dev-certs https --trust`. Run it as the same user who starts the emulator and approve the trust prompt when requested. Verify with:
+
+```sh
+dotnet dev-certs https --check --trust
+```
+
+On Linux, run `dotnet dev-certs https --trust --verbose` and follow its trust-store instructions. Older certificates may not cover `127.0.0.1`. A trust problem can cause `wait` to time out even when the host process is running. See the [platform and CI HTTPS guide](https://github.com/Clifftech123/azlocal/blob/main/docs/HTTPS.md).
+
+To change the HTTPS port, stop the host, run `azlocal start --port 5001`, and use `azlocal wait --port 5001`. Match that address in `options.BaseUrl`. The AMQP port is configured separately; see [host configuration](https://github.com/Clifftech123/azlocal/blob/main/docs/CONFIGURATION.md).
+
 ## Connect your application
 
 From your application project:
@@ -96,5 +108,6 @@ These operations cover part of the Azure APIs. Managed identity returns test tok
 - [SDK compatibility and limitations](https://github.com/Clifftech123/azlocal/blob/main/docs/SDK_COMPAT.md)
 - [Report an issue](https://github.com/Clifftech123/azlocal/issues)
 - [Release notes](https://github.com/Clifftech123/azlocal/releases)
+- [Setup troubleshooting and upgrades](https://github.com/Clifftech123/azlocal#troubleshooting)
 
 azlocal is an independent project for local development and testing. It is not affiliated with Microsoft. Licensed under MIT.

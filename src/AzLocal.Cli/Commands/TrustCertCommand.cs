@@ -4,7 +4,9 @@ namespace AzLocal.Cli.Commands;
 
 public static class TrustCertCommand
 {
-    public static Command Build()
+    public static Command Build() => Build(CertificateHelper.TrustDevCert);
+
+    internal static Command Build(Func<bool> trustCertificate)
     {
         var cmd = new Command("trust-cert", "Trust the AzLocal HTTPS developer certificate");
 
@@ -12,10 +14,13 @@ public static class TrustCertCommand
         {
             Console.WriteLine("Trusting developer certificate...");
 
-            if (CertificateHelper.TrustDevCert())
+            if (trustCertificate())
+            {
                 Console.WriteLine("Certificate trusted successfully.");
-            else
-                Console.Error.WriteLine("Failed to trust certificate. Try running as administrator/sudo.");
+                return 0;
+            }
+            Console.Error.WriteLine("Failed to trust certificate. Run 'dotnet dev-certs https --trust --verbose' as the user who starts azlocal and follow the SDK instructions.");
+            return 1;
         });
 
         return cmd;

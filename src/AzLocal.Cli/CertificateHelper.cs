@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 
 namespace AzLocal.Cli;
 
@@ -9,16 +8,8 @@ public static class CertificateHelper
     {
         try
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            {
-                Run("dotnet", "dev-certs https -ep /usr/local/share/ca-certificates/azlocal-dev.crt --format PEM --no-password");
-                Run("sudo", "update-ca-certificates");
-            }
-            else
-            {
-                // Works on Windows and macOS
-                Run("dotnet", "dev-certs https --trust");
-            }
+            // The .NET 10 SDK handles user certificate trust on each platform.
+            Run("dotnet", "dev-certs https --trust");
             return true;
         }
         catch (Exception ex)
