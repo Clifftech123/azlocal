@@ -125,16 +125,16 @@ jobs:
       - name: Check NuGet profile configuration
         shell: pwsh
         env:
-          NUGET_USER: ${{ vars.NUGET_USER }}
+          NUGET_USER: ${{ secrets.NUGET_USER || vars.NUGET_USER }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:NUGET_USER)) {
-            throw 'Set the NUGET_USER repository variable to your NuGet profile username.'
+            throw 'Set the NUGET_USER repository secret or variable to your NuGet profile username.'
           }
       - name: Authenticate to NuGet with Trusted Publishing
         uses: NuGet/login@v1
         id: nuget-login
         with:
-          user: ${{ vars.NUGET_USER }}
+          user: ${{ secrets.NUGET_USER || vars.NUGET_USER }}
       - name: Publish Core, Client, and CLI to NuGet
         shell: pwsh
         env:

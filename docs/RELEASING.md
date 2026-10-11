@@ -33,7 +33,7 @@ In your NuGet account, open **Trusted Publishing → Create** and select GitHub 
 
 Choose the NuGet user or organization that will own the packages. Configure policy scopes to allow creating packages and publishing new versions of `azlocal`, `AzLocal.Client`, and `AzLocal.Core`. Existing policies scoped to `AzureStorage.Standard` do not cover these packages.
 
-In [GitHub Actions variables](https://github.com/Clifftech123/azlocal/settings/variables/actions), create a repository variable named `NUGET_USER` containing your NuGet profile username, not your email address. The username identifies the account used for the token exchange and is not a publishing secret.
+Create a repository secret or variable named `NUGET_USER` containing your NuGet profile username, not your email address. Use [GitHub Actions secrets](https://github.com/Clifftech123/azlocal/settings/secrets/actions) or [variables](https://github.com/Clifftech123/azlocal/settings/variables/actions). The workflow accepts either and prefers the secret when both exist. The username identifies the account used for the token exchange; no stored publishing API key is required.
 
 The workflow uses `NuGet/login@v1` and GitHub OIDC to obtain a temporary publishing credential after all platform checks pass. No stored `NUGET_API_KEY` secret is required. Authentication cannot be verified until the NuGet policy and GitHub variable are configured. See [NuGet's Trusted Publishing documentation](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing).
 
@@ -93,7 +93,7 @@ The optional `Pack.ps1 -Version` argument checks an expected version against Git
 
 ## If publication fails
 
-- Missing username: set the `NUGET_USER` repository variable to your NuGet profile username.
+- Missing username: set the `NUGET_USER` repository secret or variable to your NuGet profile username.
 - Trusted Publishing login failure: check the NuGet policy owner, repository, workflow filename, and environment match this workflow, and that the policy is active.
 - NuGet authorization failure: check the policy scopes allow creating and updating all three package IDs and that the publishing account has the required ownership permissions.
 - Version/prerelease mismatch: use a suffixed version for a prerelease and an unsuffixed version for a stable release.
