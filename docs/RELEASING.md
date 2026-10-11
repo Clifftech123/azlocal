@@ -47,24 +47,35 @@ NuGet package versions cannot be overwritten. If a published prerelease needs a 
 
 After feedback and passing CI, update the changelog and prepare the next version on `develop`. Merge it into `main`, then create and publish a GitHub release tagged `v0.1.0` with the prerelease option disabled. The package version comes from the release tag, so a stable tag produces stable package versions even when the development default has an alpha suffix.
 
-For future development cycles, update `VersionPrefix` and `VersionSuffix` in `Directory.Build.props`. Dependency versions belong in `Directory.Packages.props`.
+## Automatic versioning
+
+[MinVer](https://github.com/adamralph/minver) calculates assembly and package versions from Git tags. All projects share the same settings in `Directory.Build.props`, and the MinVer dependency is private to the build.
+
+- A commit tagged `v0.1.0-alpha.1` produces package version `0.1.0-alpha.1`.
+- A commit tagged `v0.1.0` produces stable package version `0.1.0`.
+- Untagged commits get development prerelease versions that include the number of commits since the selected tag. After a stable tag, the patch version advances automatically.
+- Before the first tag, development versions start in the `0.1` range.
+
+Choose a tag when cutting a release; there are no project version numbers to edit. Dependency versions still belong in `Directory.Packages.props`. CI fetches the full Git history so MinVer can find tags. Release validation checks that the calculated version matches the published release tag.
 
 ## Build and test a release without publishing
 
-Use the `NuGet release` workflow's **Run workflow** button and enter a package version. Manual runs build and test artifacts but never upload to NuGet. This can be run on `develop` before merging.
+Use the `NuGet release` workflow's **Run workflow** button and select a branch or tag. Manual runs calculate its version from Git and build and test artifacts but never upload to NuGet. This can be run on `develop` before merging.
 
 To check locally, use PowerShell 7 and the .NET 10 SDK:
 
 ```powershell
-$version = "0.1.0-alpha.1"
-dotnet restore "-p:Version=$version"
-dotnet build --configuration Release --no-restore "-p:Version=$version"
-dotnet test --configuration Release --no-build --no-restore "-p:Version=$version"
-./eng/Pack.ps1 -Version $version -NoBuild
+dotnet restore
+dotnet build --configuration Release --no-restore
+dotnet test --configuration Release --no-build --no-restore
+$version = dotnet msbuild src/AzLocal.Client -target:MinVer -getProperty:Version -nologo
+./eng/Pack.ps1 -NoBuild
 ./eng/Test-Packages.ps1 -PackageDirectory "artifacts/packages/$version" -Version $version
 ```
 
 The installation check runs outside the checkout, installs the tool and client from the built packages, starts a host with temporary HTTPS and SQLite settings, and verifies Blob Storage, Key Vault, Service Bus, ARM, managed identity, and DI. It creates no persistent certificate trust settings and prints its temporary log directory.
+
+The optional `Pack.ps1 -Version` argument checks an expected version against Git; it never overrides MinVer. To build an exact release version, check out that release tag first.
 
 ## If publication fails
 

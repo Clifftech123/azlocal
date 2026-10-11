@@ -33,4 +33,4 @@ tests/
 
 NuGet versions are managed in [Directory.Packages.props](../Directory.Packages.props). Projects list the packages they use with versionless `PackageReference` entries. To add a dependency, add its `PackageVersion` centrally and its `PackageReference` to the project. To update a dependency, change its central version and run `dotnet restore` and `dotnet test`.
 
-Release versions are separate from dependency versions. The development defaults are in `Directory.Build.props`; published versions come from release tags. See [Releasing](RELEASING.md) for packing and testing the NuGet artifacts.
+Release versions are separate from dependency versions. MinVer calculates assembly and package versions from Git tags for every project. Its shared settings are in `Directory.Build.props`; its dependency version is in `Directory.Packages.props`. See [Releasing](RELEASING.md) for packing and testing the NuGet artifacts.

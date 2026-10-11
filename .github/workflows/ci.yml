@@ -49,7 +49,7 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $version = dotnet msbuild src/AzLocal.Client -getProperty:Version -nologo
+          $version = dotnet msbuild src/AzLocal.Client -target:MinVer -getProperty:Version -nologo
           if ($LASTEXITCODE -ne 0) { throw "Could not read the package version." }
           "version=$version" >> $env:GITHUB_OUTPUT
 

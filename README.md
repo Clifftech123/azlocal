@@ -343,12 +343,14 @@ dotnet add reference /path/to/azlocal/src/AzLocal.Client/AzLocal.Client.csproj
 
 To build and install the CLI locally, run these commands from the repository directory:
 
-```sh
+```powershell
+dotnet restore
 dotnet pack src/AzLocal.Cli -c Release -o artifacts/packages
-dotnet tool install --global azlocal --add-source artifacts/packages --version 0.1.0-alpha.1
+$version = dotnet msbuild src/AzLocal.Cli -target:MinVer -getProperty:Version -nologo
+dotnet tool install --global azlocal --add-source artifacts/packages --version $version
 ```
 
-The tool package includes the host and can run from any directory.
+The tool package includes the host and can run from any directory. MinVer calculates the version from Git tags; untagged builds get a development prerelease version.
 
 See [Contributing](docs/CONTRIBUTING.md) for the project layout and [Services](docs/SERVICES.md) for service documentation.
 
