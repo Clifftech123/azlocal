@@ -1,4 +1,5 @@
 using AzLocal.Core.Interfaces;
+using AzLocal.Core;
 using AzLocal.Middleware;
 
 namespace AzLocal.Host;
@@ -7,12 +8,22 @@ public static class EmulatorHost
 {
     public static async Task RunAsync(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--create-container-certificate")
+        {
+            ContainerCertificate.Create(args[1]);
+            return;
+        }
+        if (args.Length == 1 && args[0] == "--healthcheck")
+        {
+            Environment.ExitCode = await ContainerCertificate.CheckHealthAsync() ? 0 : 1;
+            return;
+        }
         var builder = WebApplication.CreateBuilder(args);
+        var containerNetworking = ContainerNetworkPolicy.IsEnabled(builder.Configuration);
         if (builder.Configuration["urls"] is { } urls)
             foreach (var url in urls.Split(';', StringSplitOptions.RemoveEmptyEntries))
                 if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
-                    !(uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                      System.Net.IPAddress.TryParse(uri.Host.Trim('[', ']'), out var address) && System.Net.IPAddress.IsLoopback(address)))
+                    !ContainerNetworkPolicy.AllowsListener(uri, containerNetworking))
                     throw new InvalidOperationException("AzLocal bypasses authentication and only supports loopback listeners.");
         EmulatorBuilder.Configure(builder);
 
@@ -38,7 +49,7 @@ public static class EmulatorHost
         app.MapGet("/", () => new
         {
             status  = "AzLocal emulator running",
-            version = "1.0",
+            version = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(EmulatorHost).Assembly)?.InformationalVersion,
             docs    = $"{baseUrl}/"
         });
 

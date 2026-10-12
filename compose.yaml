@@ -1,0 +1,43 @@
+services:
+  azlocal:
+    image: ${AZLOCAL_IMAGE:-azlocal:local}
+    build:
+      context: .
+      target: runtime
+    ports:
+      - "127.0.0.1:${AZLOCAL_HTTPS_PORT:-4566}:4566"
+      - "127.0.0.1:${AZLOCAL_AMQP_PORT:-5672}:5672"
+    volumes:
+      - azlocal-data:/data
+      - azlocal-certs:/certs
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+  checks:
+    profiles: [checks]
+    build:
+      context: .
+      target: smoke
+    network_mode: service:azlocal
+    depends_on:
+      azlocal:
+        condition: service_healthy
+    volumes:
+      - azlocal-certs:/certs:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  azlocal-data:
+  azlocal-certs:

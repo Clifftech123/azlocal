@@ -3,9 +3,7 @@
 # azlocal
 
 [![CI](https://github.com/Clifftech123/azlocal/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Clifftech123/azlocal/actions/workflows/ci.yml)
-[![CLI version](https://img.shields.io/nuget/vpre/azlocal?label=CLI&color=0078D4)](https://www.nuget.org/packages/azlocal)
 [![Client version](https://img.shields.io/nuget/vpre/AzLocal.Client?label=Client&color=0078D4)](https://www.nuget.org/packages/AzLocal.Client)
-[![CLI downloads](https://img.shields.io/nuget/dt/azlocal?label=CLI%20downloads&color=0078D4)](https://www.nuget.org/packages/azlocal)
 [![Client downloads](https://img.shields.io/nuget/dt/AzLocal.Client?label=Client%20downloads&color=0078D4)](https://www.nuget.org/packages/AzLocal.Client)
 [![License: MIT](https://img.shields.io/badge/license-MIT-0078D4)](LICENSE)
 
@@ -48,102 +46,54 @@ The suggested build order is Queue Storage, Table Storage, App Configuration, th
 
 ## Install and run
 
-You need the .NET 10 SDK on Windows, Linux, or macOS. Check it with `dotnet --list-sdks`; an application runtime alone does not include the certificate setup tools. Source builds use the SDK selection in `global.json`.
-
-The CLI runs the emulator. The client library connects your application to it. Version `0.1.0-alpha.1` is available on NuGet as a testing prerelease. Install it with:
+Use Docker Desktop with Linux containers on Windows/macOS, or Docker Engine and Compose on Linux. From a checkout containing Docker support:
 
 ```sh
-dotnet tool install --global azlocal --version 0.1.0-alpha.1
+docker compose up --build --detach --wait azlocal
+docker compose ps
 ```
 
-From your application or test project directory:
+The emulator exposes HTTPS at `https://127.0.0.1:4566` and AMQP at `127.0.0.1:5672`. SQLite and blob contents are stored in a named volume.
+
+The container generates its own HTTPS certificate. Export the public certificate for your application's trust store or local-development pinning:
 
 ```sh
-dotnet add package AzLocal.Client --version 0.1.0-alpha.1
+docker compose cp azlocal:/certs/localhost.crt ./azlocal-localhost.crt
 ```
 
-Check [GitHub releases](https://github.com/Clifftech123/azlocal/releases) for published versions and changes. The Core dependency is installed automatically with the client library. Use the [source setup](#contributing) if you want to work on the project or test unreleased changes.
-
-Once installed, start the emulator:
+Place that public certificate in your application's working directory for the DI example below. See [Docker setup](docs/DOCKER.md) for containerized tests, certificate handling, storage, ports, and using published Docker Hub images.
 
 ```sh
-azlocal trust-cert
-azlocal start
-azlocal wait
+docker compose logs azlocal
+docker compose down
 ```
 
-The host runs in the background at `https://127.0.0.1:4566`. `wait` checks that it responds before you run your application or tests. Certificate trust may require an extra step on your operating system or CI runner.
+Stopping with `down` preserves data. Adding `--volumes` deletes this project's stored data and certificate.
 
-Use `127.0.0.1` when configuring Blob Storage clients so the SDK parses the local account paths correctly.
-
-### Certificate trust
-
-Run `azlocal trust-cert` once before starting the host, using the same user account. It calls `dotnet dev-certs https --trust`. Accept the operating system's trust prompt, then verify:
-
-```sh
-dotnet dev-certs https --check --trust
-```
-
-On Linux, use `dotnet dev-certs https --trust --verbose` if setup needs additional trust-store tools or environment settings. Follow the SDK's output. If you already have a certificate from an older SDK, it may need replacement to cover `127.0.0.1`.
-
-See [HTTPS setup](docs/HTTPS.md) for Windows, macOS, Linux, WSL, and CI instructions. An untrusted certificate can make `wait` time out or `status` report `NOT running` even when the process has started.
-
-### Custom ports
-
-Stop the existing host before changing ports:
-
-```sh
-azlocal stop
-azlocal start --port 5001
-azlocal wait --port 5001 --timeout 60
-azlocal status --port 5001
-```
-
-Set `options.BaseUrl = "https://127.0.0.1:5001"` in your application's `AddAzLocal` registration. Service Bus remains on `5672`: changing the HTTP port does not change AMQP. To use another AMQP port, set the host environment variable `AzLocal__AmqpPort` before starting it and match `options.AmqpPort` in the client. See [Configuration](docs/CONFIGURATION.md#sdk-endpoints).
-
-### CLI commands
-
-| Command | Purpose |
-| --- | --- |
-| `start [--port N]` | Start the host; the default port is 4566 |
-| `wait [--port N] [--timeout S]` | Wait for the host to respond; the default timeout is 30 seconds |
-| `status [--port N]` | Check whether the host responds |
-| `stop` | Stop the host started by the CLI |
-| `reset` | Stop the host and delete the default temporary state directory |
-| `trust-cert` | Trust the ASP.NET Core development certificate |
-
-The CLI tracks one background host per system temporary azlocal directory, including when you choose another port. Stop it before starting a replacement. For isolated parallel tests, use test fixtures with separate HTTP/AMQP ports and state directories.
-
-### Update or uninstall
-
-After a newer version is published, stop the host and select the same version for the tool and client package:
-
-```sh
-azlocal stop
-dotnet tool update --global azlocal --version <published-version>
-dotnet add package AzLocal.Client --version <published-version>
-```
-
-Replace `<published-version>` with the version you want from [Releases](https://github.com/Clifftech123/azlocal/releases), then restart the host. To remove the tool, run `azlocal stop` followed by `dotnet tool uninstall --global azlocal`. Uninstalling the tool does not remove its stored data or certificate trust.
+Docker Hub images are published from releases containing Docker support; the older NuGet-only alpha has no image. Select a published tag from [Docker Hub](https://hub.docker.com/r/clifftech123/azlocal/tags) and use `compose.hub.yaml` as described in the Docker guide.
 
 ## Troubleshooting
 
 | Symptom | What to check |
 | --- | --- |
-| `azlocal` command not found | Confirm `dotnet tool list --global` includes it and your .NET global tools directory is on `PATH`; reopen the terminal after installation. |
-| NuGet package or version not found | Confirm that version is published and indexed. Before the first release, use the source setup below. |
-| Certificate error, `wait` timeout, or `NOT running` | Verify certificate trust and hostname coverage; check the matching HTTP port. See [HTTPS setup](docs/HTTPS.md). |
-| Host exits immediately | Check HTTP and AMQP port conflicts. Run the source host in the foreground to see startup errors: `dotnet run --project src/AzLocal.Host -- --urls https://127.0.0.1:4566`. |
-| Service Bus connection fails | Match the host and client AMQP ports, confirm AMQP is enabled, and check whether another process uses that port. |
-| Injected client cannot be resolved | Set the resource names required for that client in `AddAzLocal`; register your application service too. |
-| Data disappears after restart | `InMemory` loses metadata and messages. Use `Sqlite` or `JsonSnapshot` and persistent directories. |
-| `reset` leaves custom data behind | It clears only the default temporary azlocal directory; custom directories need separate cleanup. |
+| Container exits or is unhealthy | Run `docker compose logs azlocal`; check port conflicts and volume permissions. |
+| HTTPS SDK requests fail | Trust or pin the exported container certificate. See [Docker HTTPS setup](docs/DOCKER.md#https-and-application-clients). |
+| Service Bus cannot connect | Match the published AMQP port to the client; shared-network containers use internal port 5672. |
+| Client cannot be resolved from DI | Set the resource names for the client you need and register your application service. |
+| Data disappears | Keep the named volume and use a persistent state mode; avoid `down --volumes` when keeping data. |
+| Windows blocks an application DLL | Dockerizing the server does not change Windows application policies. See [containerized applications/tests](docs/DOCKER.md#applications-and-tests-inside-docker). |
 
-For an issue report, include the azlocal version, OS, .NET SDK version, command or SDK operation, relevant configuration, and error output. Remove private values before sharing logs. Report it in [GitHub Issues](https://github.com/Clifftech123/azlocal/issues).
+Report reproducible problems in [GitHub Issues](https://github.com/Clifftech123/azlocal/issues), including the image version, OS, Docker version, relevant configuration, and error output. Remove private values from logs.
 
 ## Connect your application
 
-With `AzLocal.Client` referenced in your application or test project, register the clients once with dependency injection. Application services receive the SDK clients through their constructors.
+Add the client library to your .NET 10 application or test project:
+
+```sh
+dotnet add package AzLocal.Client --version 0.1.0-alpha.1
+```
+
+Core is installed automatically. Register clients once with DI; application services receive them through constructors. The server runs separately in Docker.
 
 ### Dependency injection
 
@@ -153,11 +103,19 @@ For an ASP.NET Core application, register the local clients in `Program.cs`:
 using AzLocal.Client;
 using Azure.Messaging.ServiceBus;
 using Azure.Storage.Blobs;
+using System.Security.Cryptography.X509Certificates;
 
+using var certificate = X509CertificateLoader.LoadCertificateFromFile("azlocal-localhost.crt");
+var thumbprint = certificate.Thumbprint;
+using var transport = new HttpClientHandler
+{
+    ServerCertificateCustomValidationCallback = (_, peer, _, _) => peer?.Thumbprint == thumbprint
+};
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddAzLocal(options =>
 {
     options.BaseUrl = "https://127.0.0.1:4566";
+    options.TransportHandler = transport;
     options.BlobAccountName = "myaccount";
     options.BlobContainerName = "uploads";
     options.KeyVaultName = "myvault";
@@ -306,67 +264,25 @@ For tests that run the host inside the test process, use `WebApplicationFactory<
 
 ## State and configuration
 
-Choose where the emulator stores resource metadata, secrets, and messages:
+The Docker image defaults to SQLite at `/data/state.db`, with blob files at `/data/blobs`. Compose mounts a named volume at `/data`, so data survives container recreation.
 
-| State mode | Storage | Survives a host restart? |
-| --- | --- | --- |
-| `InMemory` (default) | Memory | No |
-| `JsonSnapshot` | `<system-temp>/azlocal/state.json` | Yes, while the file exists |
-| `Sqlite` | `<system-temp>/azlocal/state.db` | Yes, while the file exists |
-
-Blob contents are stored separately in `<system-temp>/azlocal/blobs` in every mode. With `InMemory`, blob metadata is lost when the host stops, even though the files remain. Choose a persistent state mode to use those blobs after restarting.
-
-The system temporary directory comes from `Path.GetTempPath()`: usually `%TEMP%` on Windows and `/tmp` on Linux. For data you want to keep, configure a directory outside system temporary storage.
-
-### SQLite setup
-
-SQLite runs inside the emulator. You do not need SQL Server, Docker, a connection string, or a SQL schema script. azlocal creates `state.db` and its table automatically.
-
-Set the host's environment variables before starting it. These examples keep the database and blob files in a project-local `.azlocal` directory.
-
-Windows PowerShell:
-
-```powershell
-azlocal stop
-$stateDirectory = Join-Path (Get-Location) ".azlocal"
-$env:AzLocal__StateMode = "Sqlite"
-$env:AzLocal__SqlitePath = $stateDirectory
-$env:AzLocal__BlobStorePath = Join-Path $stateDirectory "blobs"
-azlocal start
-azlocal wait
-```
-
-Linux or macOS:
-
-```sh
-azlocal stop
-export AzLocal__StateMode=Sqlite
-export AzLocal__SqlitePath="$PWD/.azlocal"
-export AzLocal__BlobStorePath="$PWD/.azlocal/blobs"
-azlocal start
-azlocal wait
-```
-
-The directories are created automatically. These variables also apply when starting the host with `dotnet run`. Restart the host after changing its storage settings. `AddAzLocal` configures application clients; storage settings belong to the emulator host.
-
-### Temporary state and other options
-
-For SQLite in the default temporary directory, set only `AzLocal__StateMode=Sqlite` in a shell with no custom storage paths set. For a JSON snapshot, use `JsonSnapshot` and optionally set `AzLocal__SnapshotPath`. For disposable metadata and messages, use `InMemory`.
-
-| Environment variable | Purpose |
+| Mode | Behavior |
 | --- | --- |
-| `AzLocal__StateMode` | `InMemory`, `JsonSnapshot`, or `Sqlite`; use this exact spelling |
-| `AzLocal__SqlitePath` | Directory containing `state.db` |
-| `AzLocal__SnapshotPath` | Directory containing `state.json` |
-| `AzLocal__BlobStorePath` | Directory containing blob files |
+| `Sqlite` (default) | Metadata, secrets, and messages persist in SQLite |
+| `JsonSnapshot` | Metadata, secrets, and messages persist in a JSON snapshot |
+| `InMemory` | Metadata and messages are discarded when the process stops |
 
-Run one host per state directory. `azlocal reset` clears the default temporary state directory; it does not clear custom directories such as `.azlocal`. Exclude that directory from version control; this repository already does.
+Blob contents are files in every mode. Use a persistent metadata store to access existing blobs after a restart. One server should own each data volume.
 
-The blob storage format changed to separate accounts and preserve case-sensitive names. Blob data created with the previous format needs to be recreated; there is no automatic migration.
+Configure the server through Compose environment settings. For example, add this to the `azlocal` service to use JSON:
 
-See [Configuration](docs/CONFIGURATION.md) for the host settings template and endpoint options.
+```yaml
+environment:
+  AzLocal__StateMode: JsonSnapshot
+  AzLocal__SnapshotPath: /data
+```
 
-azlocal accepts fake credentials and only allows local connections. Use test data and test secrets. Keep the emulator on your machine or inside your test environment.
+The image also sets the SQLite and blob paths under `/data`. See [Configuration](docs/CONFIGURATION.md) for the available settings. Changing modes does not migrate existing metadata. Older development blob formats must be recreated.
 
 ## Work still to do
 
@@ -376,13 +292,13 @@ Contributions are welcome for the planned services in the [status table](#servic
 - Resource management: extend SDK support beyond subscriptions and resource groups.
 - Blob Storage and Key Vault: extend API coverage and add SDK compatibility tests for additional operations.
 - Storage: add a migration for blob data created with the previous format.
-- CLI: check installation, certificate setup, startup, and shutdown on Windows, Linux, and macOS.
+- Docker: expand architecture coverage and containerized application examples.
 
 There are no release dates for these items yet.
 
 ## Contributing
 
-Clone the repository if you want to work on azlocal or try it before the NuGet release:
+Clone the repository, then build and test with the .NET 10 SDK:
 
 ```sh
 git clone https://github.com/Clifftech123/azlocal.git
@@ -391,33 +307,15 @@ dotnet build
 dotnet test
 ```
 
-To run the host directly from the checkout:
+Run the server and containerized SDK checks with Docker:
 
 ```sh
-dotnet dev-certs https --trust
-dotnet run --project src/AzLocal.Host -- --urls https://127.0.0.1:4566
+docker compose up --build --detach --wait azlocal
+docker compose --profile checks build checks
+docker compose --profile checks run --rm checks
 ```
 
-Keep that process running while you use your application. To reference the client library before it is published, run this from your application or test project, replacing the path with your checkout location:
-
-```sh
-dotnet add reference /path/to/azlocal/src/AzLocal.Client/AzLocal.Client.csproj
-```
-
-To build and install the CLI locally, run these commands from the repository directory:
-
-```powershell
-dotnet restore
-dotnet pack src/AzLocal.Cli -c Release -o artifacts/packages
-$version = dotnet msbuild src/AzLocal.Cli -target:MinVer -getProperty:Version -nologo
-dotnet tool install --global azlocal --add-source artifacts/packages --version $version
-```
-
-The tool package includes the host and can run from any directory. MinVer calculates the version from Git tags; untagged builds get a development prerelease version.
-
-See [Contributing](docs/CONTRIBUTING.md) for the project layout and [Services](docs/SERVICES.md) for service documentation.
-
-See [Releasing](docs/RELEASING.md) for prerelease testing, NuGet setup, and stable publication.
+See [Contributing](docs/CONTRIBUTING.md) for the project layout, [Services](docs/SERVICES.md) for service documentation, and [Releasing](docs/RELEASING.md) for publishing.
 
 ## License
 

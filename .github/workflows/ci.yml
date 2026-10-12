@@ -18,6 +18,31 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Calculate image version
+        id: version
+        shell: pwsh
+        run: |
+          dotnet restore src/AzLocal.Client
+          if ($LASTEXITCODE -ne 0) { throw 'Restore failed.' }
+          $version = dotnet msbuild src/AzLocal.Client -target:MinVer -getProperty:Version -nologo
+          if ($LASTEXITCODE -ne 0) { throw 'Version calculation failed.' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Validate Compose
+        run: docker compose config --quiet
+      - name: Test Docker SDK operations and persistent storage
+        shell: pwsh
+        run: ./eng/Test-Docker.ps1 -Version '${{ steps.version.outputs.version }}'
+
   build-and-test:
     strategy:
       fail-fast: false

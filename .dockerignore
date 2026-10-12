@@ -1,0 +1,15 @@
+.git
+**/bin
+**/obj
+**/TestResults
+artifacts
+.azlocal
+.codex
+.agents
+.aws
+**/*.pfx
+**/*.key
+**/*.pem
+.env
+.env.*
+!.env.example

@@ -1,82 +1,67 @@
 # Releasing azlocal
 
-The first public testing version is `0.1.0-alpha.1`. Publish prereleases while collecting feedback, then publish `0.1.0` when the supported operations and installation flow are ready for a stable release.
+The server is distributed as a Docker image. Applications use the NuGet client library. The former global CLI was retired after the NuGet-only `0.1.0-alpha.1` release; it is not built or published in future releases.
 
-## Packages
+## Release artifacts
 
-Each release publishes the same version of three packages:
-
-| Package | Purpose |
+| Artifact | Purpose |
 | --- | --- |
-| `azlocal` | .NET tool with the bundled emulator host |
-| `AzLocal.Client` | DI registrations and local Azure SDK client setup |
-| `AzLocal.Core` | Required dependency of the client library |
+| `clifftech123/azlocal:<version>` | Linux emulator server image |
+| `AzLocal.Client` | DI registration and local Azure SDK setup |
+| `AzLocal.Core` | Required client dependency |
 
-Host internals and test projects are not published as separate packages. The CLI bundles its host dependencies. NuGet installs Core automatically when an application references Client.
+The image and both packages use the version determined by MinVer from the release tag. Only stable releases update the Docker `latest` tag. Initial Docker images support `linux/amd64`.
 
-## Before the first publication
+## GitHub account configuration
 
-1. Wait for the `develop` CI workflow to pass on Windows, Linux, and macOS. It builds, runs the test suites, packs all three packages, and installs them into a fresh application for live SDK checks.
-2. Configure NuGet Trusted Publishing as described below.
-3. Review and merge the `develop` pull request into `main`. Release tags must point to commits merged into `main`.
+NuGet uses Trusted Publishing. In NuGet, configure a GitHub Actions policy with repository owner `Clifftech123`, repository `azlocal`, workflow file `release.yml`, and no environment. Allow creating and updating `AzLocal.Client` and `AzLocal.Core`; choose the user or organization owning the packages.
 
-## NuGet Trusted Publishing setup
+Set `NUGET_USER` as a repository secret or variable containing your individual NuGet profile username, not an email address. A stored NuGet API key is not needed.
 
-In your NuGet account, open **Trusted Publishing → Create** and select GitHub Actions. Set these fields:
+For Docker Hub, configure:
 
-| Field | Value |
-| --- | --- |
-| Repository owner | `Clifftech123` |
-| Repository | `azlocal` |
-| Workflow file | `release.yml` (filename only) |
-| Environment | Leave empty; the publishing job does not use a GitHub environment |
+| Setting | Location | Value |
+| --- | --- | --- |
+| `DOCKERHUB_USERNAME` | Secret or variable | Docker Hub username |
+| `DOCKERHUB_NAMESPACE` | Secret or variable | Owner of the `azlocal` repository |
+| `DOCKERHUB_TOKEN` | Secret | Docker Hub access token with push permission |
 
-Choose the NuGet user or organization that will own the packages. Configure policy scopes to allow creating packages and publishing new versions of `azlocal`, `AzLocal.Client`, and `AzLocal.Core`. Existing policies scoped to `AzureStorage.Standard` do not cover these packages.
+The workflow accepts secrets or variables for username/namespace and prefers secrets if both exist. Never place tokens in source files or release notes.
 
-Create a repository secret or variable named `NUGET_USER` containing your NuGet profile username, not your email address. Use [GitHub Actions secrets](https://github.com/Clifftech123/azlocal/settings/secrets/actions) or [variables](https://github.com/Clifftech123/azlocal/settings/variables/actions). The workflow accepts either and prefers the secret when both exist. The username identifies the account used for the token exchange; no stored publishing API key is required.
+## Publish a prerelease
 
-The workflow uses `NuGet/login@v1` and GitHub OIDC to obtain a temporary publishing credential after all platform checks pass. No stored `NUGET_API_KEY` secret is required. Authentication cannot be verified until the NuGet policy and GitHub variable are configured. See [NuGet's Trusted Publishing documentation](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing).
+1. Wait for all CI checks on `develop`: native builds/tests and client package compilation on Windows, Linux, and macOS, plus live Docker SDK and restart-persistence checks.
+2. Review and merge the change into `main`.
+3. Create a GitHub release targeting the merged commit, with a new tag such as `v0.1.0-alpha.2`.
+4. Enable **Set as a pre-release** and describe changes and limitations.
+5. Publish the release and watch the **Release** workflow.
 
-## First prerelease
+The source commit must be merged into `main`. The workflow checks that the tag matches MinVer and the prerelease flag matches the version suffix. Docker and NuGet uploads happen only after all test jobs pass.
 
-Create a GitHub release from `main` with:
+The Docker publisher uploads the same image that passed SDK and persistence tests. NuGet uploads Core first, then Client, and attaches the packages to the GitHub release. Confirm the public image tag and NuGet indexing, then check installation using those published artifacts. Docker Hub's overview can use [the Docker guide](DOCKER.md).
 
-- Tag: `v0.1.0-alpha.1`
-- Title: `azlocal 0.1.0-alpha.1`
-- The **Set as a pre-release** option enabled
-- Notes describing the supported operations, installation commands, and known limitations
+Do not reuse a published version or move its tag. Release fixes as a new alpha version. Retrying a failed NuGet upload skips existing versions. Preserve already published packages as release history.
 
-Publish the GitHub release when you are ready to upload the packages to NuGet. Saving a draft does not publish packages. The `NuGet release` workflow validates the version, tests and installs the packages on all three operating systems, and publishes only after every platform passes.
+## Stable releases
 
-The workflow pushes Core first, then Client, then the CLI, and attaches the package files to the GitHub release. Check that the workflow succeeds and allow time for NuGet indexing before testing installation from the public feed.
-
-```sh
-dotnet tool install --global azlocal --version 0.1.0-alpha.1
-dotnet add package AzLocal.Client --version 0.1.0-alpha.1
-```
-
-NuGet package versions cannot be overwritten. If a published prerelease needs a fix, publish `0.1.0-alpha.2` rather than changing the existing tag. A failed upload can be retried; already uploaded packages are skipped.
-
-## Stable release
-
-After feedback and passing CI, update the changelog and prepare the next version on `develop`. Merge it into `main`, then create and publish a GitHub release tagged `v0.1.0` with the prerelease option disabled. The package version comes from the release tag, so a stable tag produces stable package versions even when the development default has an alpha suffix.
+After feedback and validation, create a stable tag such as `v0.1.0`, with the GitHub prerelease option disabled. Stable images also update `latest`. A stable version label does not change an operating system's application-control policy; server distribution is Docker-only.
 
 ## Automatic versioning
 
-[MinVer](https://github.com/adamralph/minver) calculates assembly and package versions from Git tags. All projects share the same settings in `Directory.Build.props`, and the MinVer dependency is private to the build.
+MinVer 6.0.0 is a private build dependency. Shared configuration is in `Directory.Build.props`, and dependency versions are managed in `Directory.Packages.props`.
 
-- A commit tagged `v0.1.0-alpha.1` produces package version `0.1.0-alpha.1`.
-- A commit tagged `v0.1.0` produces stable package version `0.1.0`.
-- Untagged commits get development prerelease versions that include the number of commits since the selected tag. After a stable tag, the patch version advances automatically.
-- Before the first tag, development versions start in the `0.1` range.
+- A tagged commit produces that exact version without the `v` prefix.
+- Untagged commits produce development prerelease versions with commit height.
+- After a stable tag, the patch version advances automatically.
+- Before the first tag, builds start in the `0.1` range.
 
-Choose a tag when cutting a release; there are no project version numbers to edit. Dependency versions still belong in `Directory.Packages.props`. CI fetches the full Git history so MinVer can find tags. Release validation checks that the calculated version matches the published release tag.
+CI fetches full Git history. Docker builds receive the calculated version as a build argument because their context excludes Git metadata. No project version fields need editing.
 
-## Build and test a release without publishing
+## Build and test without publishing
 
-Use the `NuGet release` workflow's **Run workflow** button and select a branch or tag. Manual runs calculate its version from Git and build and test artifacts but never upload to NuGet. This can be run on `develop` before merging.
+Use **Run workflow** for **Release**, selecting a branch or tag. Manual runs build and test artifacts but do not publish.
 
-To check locally, use PowerShell 7 and the .NET 10 SDK:
+Locally, with .NET 10, PowerShell 7, and Docker:
 
 ```powershell
 dotnet restore
@@ -85,19 +70,17 @@ dotnet test --configuration Release --no-build --no-restore
 $version = dotnet msbuild src/AzLocal.Client -target:MinVer -getProperty:Version -nologo
 ./eng/Pack.ps1 -NoBuild
 ./eng/Test-Packages.ps1 -PackageDirectory "artifacts/packages/$version" -Version $version
+./eng/Test-Docker.ps1 -Version $version
 ```
 
-The installation check runs outside the checkout, installs the tool and client from the built packages, starts a host with temporary HTTPS and SQLite settings, and verifies Blob Storage, Key Vault, Service Bus, ARM, managed identity, and DI. It creates no persistent certificate trust settings and prints its temporary log directory.
+Client package checks install dependencies into a fresh app outside the checkout and compile it. Docker checks consume freshly built NuGet packages in a Linux application container, exercise SDK operations with pinned HTTPS, restart the server, and check persistent state and blobs. They do not alter host certificate trust.
 
-The optional `Pack.ps1 -Version` argument checks an expected version against Git; it never overrides MinVer. To build an exact release version, check out that release tag first.
+## Troubleshooting publication
 
-## If publication fails
+- NuGet login failure: verify `NUGET_USER`, policy ownership, repository, workflow filename, scopes, and policy activity.
+- Docker Hub login failure: verify the username and access token.
+- Docker push failure: verify namespace/repository ownership and token push permission.
+- Source validation failure: merge the release commit into `main`.
+- Build/test/installation failure: fix the change, rerun CI, and merge before releasing.
 
-- Missing username: set the `NUGET_USER` repository secret or variable to your NuGet profile username.
-- Trusted Publishing login failure: check the NuGet policy owner, repository, workflow filename, and environment match this workflow, and that the policy is active.
-- NuGet authorization failure: check the policy scopes allow creating and updating all three package IDs and that the publishing account has the required ownership permissions.
-- Version/prerelease mismatch: use a suffixed version for a prerelease and an unsuffixed version for a stable release.
-- Source check failure: merge the release commit into `main` before creating the release.
-- Build, test, or install failure: fix it on `develop`, rerun CI, and merge the fix before retrying a release.
-
-Do not disable failing tests to publish a release. Stable releases describe a dependable local developer tool, not a replacement for Azure's production services.
+Do not disable failing tests to publish.
