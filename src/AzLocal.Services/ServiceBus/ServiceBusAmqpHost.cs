@@ -6,6 +6,7 @@ using Amqp.Handler;
 using Amqp.Listener;
 using Amqp.Types;
 using AzLocal.Core.Interfaces;
+using AzLocal.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -39,7 +40,8 @@ public sealed class ServiceBusAmqpHost : IHostedService
         if (_config["AzLocal:AmqpPort"] is { Length: > 0 } portValue && !int.TryParse(portValue, out port))
             throw new InvalidOperationException("AzLocal:AmqpPort must be an integer.");
         if (port is < 1 or > 65535) throw new InvalidOperationException("AzLocal:AmqpPort must be between 1 and 65535.");
-        var host = new ContainerHost(new Address($"amqp://127.0.0.1:{port}"));
+        var bindAddress = ContainerNetworkPolicy.IsEnabled(_config) ? "0.0.0.0" : "127.0.0.1";
+        var host = new ContainerHost(new Address($"amqp://{bindAddress}:{port}"));
         _host = host;
         foreach (var listener in host.Listeners)
         {
@@ -72,7 +74,7 @@ public sealed class ServiceBusAmqpHost : IHostedService
             return path;
         };
         host.Open();
-        _logger.LogInformation("Local Service Bus AMQP listener on 127.0.0.1:{Port}", port);
+        _logger.LogInformation("Local Service Bus AMQP listener on {Address}:{Port}", bindAddress, port);
         return Task.CompletedTask;
     }
 

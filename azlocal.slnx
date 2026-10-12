@@ -1,6 +1,5 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/AzLocal.Cli/AzLocal.Cli.csproj" />
     <Project Path="src/AzLocal.Client/AzLocal.Client.csproj" />
     <Project Path="src/AzLocal.Core/AzLocal.Core.csproj" />
     <Project Path="src/AzLocal.Host/AzLocal.Host.csproj" />

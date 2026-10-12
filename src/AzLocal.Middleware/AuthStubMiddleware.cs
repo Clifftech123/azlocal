@@ -15,10 +15,12 @@ public class AuthStubMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ClaimsPrincipal _fakeUser;
+    private readonly bool _containerNetworking;
 
     public AuthStubMiddleware(RequestDelegate next, IConfiguration config)
     {
         _next = next;
+        _containerNetworking = ContainerNetworkPolicy.IsEnabled(config);
         var objectId = config["AzLocal:ObjectId"] ?? EmulatorDefaults.ObjectId;
         var tenantId = config["AzLocal:TenantId"] ?? EmulatorDefaults.TenantId;
 
@@ -34,8 +36,7 @@ public class AuthStubMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         // The emulator intentionally bypasses authentication and must remain local.
-        if (context.Connection.RemoteIpAddress is { } address &&
-            !System.Net.IPAddress.IsLoopback(address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address))
+        if (!ContainerNetworkPolicy.AllowsClient(context.Connection.RemoteIpAddress, _containerNetworking))
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             return;

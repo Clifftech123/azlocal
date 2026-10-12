@@ -18,15 +18,15 @@ Set `BlobAccountName`, `BlobContainerName`, `KeyVaultName`, and `ServiceBusQueue
 
 ## Blob Storage and Key Vault
 
-Trust the development certificate before using the HTTP SDK clients. Token-based Blob Storage clients need HTTPS. Use the literal IP `127.0.0.1` so the Blob SDK recognizes account paths.
+Trust or pin the container's public certificate before using the HTTP SDK clients. Token-based Blob Storage clients need HTTPS. Use the literal IP `127.0.0.1` so the Blob SDK recognizes account paths.
 
-See [HTTPS setup](HTTPS.md) for certificate trust, Linux diagnostics, older certificates, and CI setup.
+See [HTTPS setup](HTTPS.md) for exporting and pinning the certificate in applications and tests.
 
 Key Vault uses a local authentication challenge. The registered client disables challenge resource verification for the local endpoint. This setting is intended for the emulator.
 
 ## Service Bus
 
-The host starts an AMQP 1.0 TCP listener on `127.0.0.1:5672`. The registered client uses `UseDevelopmentEmulator=true` and fake SAS credentials. The listener is bound to loopback, and connections are plaintext.
+Docker publishes the AMQP 1.0 TCP listener on `127.0.0.1:5672`. The registered client uses `UseDevelopmentEmulator=true` and fake SAS credentials. Connections are plaintext; keep the published port bound to host loopback.
 
 AMQP clients use the HTTP namespace `local`. Queues are created on first use. HTTP and AMQP operations use the same state store and coordinator, so they share messages and locks.
 

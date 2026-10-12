@@ -22,7 +22,7 @@ if (-not $OutputDirectory) {
 $OutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 
-foreach ($project in @('AzLocal.Core', 'AzLocal.Client', 'AzLocal.Cli')) {
+foreach ($project in @('AzLocal.Core', 'AzLocal.Client')) {
     $projectPath = Join-Path $repositoryRoot "src/$project/$project.csproj"
     $packArguments = @('pack', $projectPath, '--configuration', 'Release', '--no-restore', '--output', $OutputDirectory)
     if ($NoBuild) { $packArguments += '--no-build' }

@@ -1,0 +1,21 @@
+services:
+  azlocal:
+    image: clifftech123/azlocal:${AZLOCAL_VERSION:?Set AZLOCAL_VERSION to a published Docker image tag}
+    ports:
+      - "127.0.0.1:${AZLOCAL_HTTPS_PORT:-4566}:4566"
+      - "127.0.0.1:${AZLOCAL_AMQP_PORT:-5672}:5672"
+    volumes:
+      - azlocal-data:/data
+      - azlocal-certs:/certs
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+volumes:
+  azlocal-data:
+  azlocal-certs:

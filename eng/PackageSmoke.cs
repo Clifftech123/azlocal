@@ -10,7 +10,10 @@ using AzLocal.Client;
 
 var endpoint = args[0];
 var amqpPort = int.Parse(args[1]);
-var thumbprint = args[2];
+using var pinnedCertificate = File.Exists(args[2])
+    ? System.Security.Cryptography.X509Certificates.X509CertificateLoader.LoadCertificateFromFile(args[2])
+    : null;
+var thumbprint = pinnedCertificate?.Thumbprint ?? args[2];
 using var transport = new HttpClientHandler
 {
 	ServerCertificateCustomValidationCallback = (_, certificate, _, _) => certificate?.Thumbprint == thumbprint
@@ -32,6 +35,15 @@ using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
 var ct = timeout.Token;
 
 var container = provider.GetRequiredService<BlobContainerClient>();
+if (args.Length > 3 && args[3] == "verify")
+{
+    var persistedBlob = await container.GetBlobClient("hello.txt").DownloadContentAsync(ct);
+    var persistedSecret = await provider.GetRequiredService<SecretClient>().GetSecretAsync("example", cancellationToken: ct);
+    if (persistedBlob.Value.Content.ToString() != "packaged blob" || persistedSecret.Value.Value != "packaged secret")
+        throw new Exception("Container data did not persist across restart.");
+    Console.WriteLine("Container SQLite state and blob contents survived restart.");
+    return;
+}
 await container.CreateIfNotExistsAsync(cancellationToken: ct);
 var blob = container.GetBlobClient("hello.txt");
 await blob.UploadAsync(new BinaryData("packaged blob"), cancellationToken: ct);
@@ -53,4 +65,4 @@ var arm = provider.GetRequiredService<ArmClient>();
 var subscription = await arm.GetDefaultSubscriptionAsync(ct);
 var created = await subscription.GetResourceGroups().CreateOrUpdateAsync(WaitUntil.Completed, "package-rg", new ResourceGroupData(new AzureLocation("eastus")), ct);
 await created.Value.DeleteAsync(WaitUntil.Completed, cancellationToken: ct);
-Console.WriteLine("Installed NuGet packages passed Blob, Key Vault, Service Bus, ARM, managed identity, and DI checks.");
+Console.WriteLine("Azure SDK checks passed Blob, Key Vault, Service Bus, ARM, managed identity, and DI.");

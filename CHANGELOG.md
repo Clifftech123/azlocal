@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Run the emulator server in Docker with persistent SQLite and certificate volumes.
+- Remove the CLI project and global tool from future releases; keep the Client and Core NuGet libraries.
+- Test packaged SDK clients and state persistence against the container before publication.
+- Publish tested, versioned Linux AMD64 images to Docker Hub through the release workflow.
+
 ## 0.1.0-alpha.1
 
 First public testing release, published on NuGet.

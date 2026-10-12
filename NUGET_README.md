@@ -16,7 +16,7 @@ dotnet add package AzLocal.Client --version 0.1.0-alpha.1
 
 The client installs `AzLocal.Core` automatically. Version `0.1.0-alpha.1` is a prerelease.
 
-`AzLocal.Client` configures Azure SDK clients in your application. It does not start or include the emulator server. The `azlocal` package is the separate CLI that bundles the server; application integration does not require globally installing that tool.
+`AzLocal.Client` configures Azure SDK clients in your application. The emulator server runs separately in Docker.
 
 ## Usage
 
@@ -45,14 +45,16 @@ Inject `BlobContainerClient`, `SecretClient`, `ServiceBusSender`, or `ServiceBus
 
 Start the emulator separately before your application or tests make requests. The default endpoints are HTTPS at `https://127.0.0.1:4566` and AMQP at `127.0.0.1:5672`. Match `BaseUrl` and `AmqpPort` to the running server.
 
-The current release supports the CLI and [running the host from source](https://github.com/Clifftech123/azlocal#contributing). See [server setup](https://github.com/Clifftech123/azlocal#install-and-run) and [HTTPS setup](https://github.com/Clifftech123/azlocal/blob/main/docs/HTTPS.md). Docker distribution is planned and is not available in this release.
+Run the server with [Docker Compose](https://github.com/Clifftech123/azlocal/blob/main/docs/DOCKER.md). The Docker guide covers building locally, published image tags, certificates, and persistent volumes. The older NuGet-only alpha has no matching Docker image.
 
-**Windows:** enforced App Control can block the CLI launcher or application DLLs. Adding a project dependency does not resolve that restriction. See the [known signing issue](https://github.com/Clifftech123/azlocal/blob/main/docs/WINDOWS_APP_CONTROL.md).
+For Docker, export and trust or pin the container's public certificate before SDK calls. It is separate from the host's development certificate. See [Docker HTTPS setup](https://github.com/Clifftech123/azlocal/blob/main/docs/DOCKER.md#https-and-application-clients).
+
+For environments blocking native application DLLs, see [running applications/tests in containers](https://github.com/Clifftech123/azlocal/blob/main/docs/DOCKER.md#applications-and-tests-inside-docker).
 
 ## Documentation
 
 - [Configuration and storage](https://github.com/Clifftech123/azlocal/blob/main/docs/CONFIGURATION.md)
-- [Certificate setup](https://github.com/Clifftech123/azlocal/blob/main/docs/HTTPS.md)
+- [Docker certificate setup](https://github.com/Clifftech123/azlocal/blob/main/docs/DOCKER.md#https-and-application-clients)
 - [Release notes](https://github.com/Clifftech123/azlocal/releases)
 - [Report an issue](https://github.com/Clifftech123/azlocal/issues)
 
